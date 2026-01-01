@@ -29,6 +29,8 @@ This project can be used in two ways:
 
 Because I only have one Basilisk V3 (Wired) mouse, and other models are somewhat expensive, this project only supports this specific model now. For models such as "Ultimate" "Pro" "35K", it is currently NOT supported. However I believe the protocols are mostly the same. With little modification it may be possible to work just fine. Nevertheless I cannot ensure it is usable, and I can't be responsible if it breaks your mouse.
 
+According to another user's experience, the V3 Pro model supports the same protocol.
+
 ## 编译和运行 / Compiling and Running
 
 ### 本地运行 python 脚本 / Run python scripts locally

@@ -14,19 +14,35 @@ async function requestDevice(){
   await runPython.value(`
     import hid
     hid.set_await_js(await_js)
-    from basilisk_v3.device import BasiliskV3Device
-    globals()['original_sr_with'] = BasiliskV3Device.sr_with
-    def sr_with(self, *args, **kwargs):
-        print(f's: {hex(args[0])} {args[1:]}, {kwargs}')
-        r = original_sr_with(self, *args, **kwargs)
-        print(f'r: {r}')
-        return r
-    BasiliskV3Device.sr_with = sr_with
     import qdrazer.protocol as pt
-    device = BasiliskV3Device()
-    if custom_path is not None:
-      hid.enumerate()
-    device.connect(path=custom_path)
+    # Import both device classes and try the new PID first
+    from basilisk_v3.device import BasiliskV3ProDevice, BasiliskV3Device
+    if 'original_sr_with' not in globals():
+        globals()['original_sr_with'] = BasiliskV3Device.sr_with
+        def sr_with(self, *args, **kwargs):
+            print(f's: {hex(args[0])} {args[1:]}, {kwargs}')
+            r = original_sr_with(self, *args, **kwargs)
+            print(f'r: {r}')
+            return r
+        BasiliskV3Device.sr_with = sr_with
+
+    # Try connecting with the new PID (0x00AB) first, then fall back to old PID (0x0099)
+    device = None
+    for DeviceClass in [BasiliskV3ProDevice, BasiliskV3Device]:
+        try:
+            device = DeviceClass()
+            if custom_path is not None:
+                hid.enumerate()
+            device.connect(path=custom_path)
+            print('Connected with device:', DeviceClass.__name__)
+            break
+        except Exception as e:
+            print(f'Failed to connect with {DeviceClass.__name__}: {e}')
+            continue
+
+    if device is None:
+        raise RuntimeError('Could not connect to any device')
+
     print('device created', device.get_serial())
   `, {add: {custom_path: customPath.value}});
   emit('deviceCreated');
@@ -53,9 +69,11 @@ const customPid = ref(0);
 
 async function setCustomVidPid() {
   await runPython.value(`
-    from basilisk_v3.device import BasiliskV3Device
+    from basilisk_v3.device import BasiliskV3Device, BasiliskV3ProDevice
     BasiliskV3Device.vid = int(vid)
     BasiliskV3Device.pid = int(pid)
+    BasiliskV3ProDevice.vid = int(vid)
+    BasiliskV3ProDevice.pid = int(pid)
   `, {locals: {vid: customVid.value, pid: customPid.value}});
 }
 

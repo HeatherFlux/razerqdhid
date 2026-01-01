@@ -9,17 +9,23 @@ class BasiliskV3Device(Device):
     pid = 0x0099
     ifn = 3
     
+    def _fix_interface_number(self, it):
+        """Hook for subclasses to fix interface detection issues."""
+        fio = tuple(it.get("fio_count") or ())
+        if it['usage_page'] == 12 and fio == (0, 0, 0):
+            it['interface_number'] = self.ifn
+        if it['usage_page'] == 12 and fio == (1, 0, 0) and it['interface_number'] == -1:
+            it['interface_number'] = self.ifn
+        return it
+    
     def connect(self, nth=1, path=None):
         self.path = path
         if self.path is None:
             ith = 0
             for it in hid.enumerate():
-                if it['usage_page'] == 12 and tuple(it.get('fio_count') or ()) == (0, 0, 0):
-                    # workaround for webhid which cannot get ifn
-                    it['interface_number'] = self.ifn
-                if it['usage_page'] == 12 and tuple(it.get('fio_count') or ()) == (1, 0, 0) and it['interface_number'] == -1:
-                    # workaround for webhid returning ifn as -1 on Linux ungoogled chromium
-                    it['interface_number'] = self.ifn
+                # Call the hook to allow subclasses to modify 'it'
+                it = self._fix_interface_number(it)
+
                 if self.vid == it['vendor_id'] and self.pid == it['product_id'] and it['interface_number'] == self.ifn:
                     ith += 1
                     if nth == ith:
@@ -78,6 +84,30 @@ class BasiliskV3Device(Device):
             else:
                 raise pt.RazerException(f'report execution failed {rr.status}', rr)
         raise pt.RazerException('report timeout', rr)
+
+
+class BasiliskV3ProDevice(BasiliskV3Device):
+    """
+    Basilisk V3 Pro with PID 0x00AB (171)
+    Supports the same protocol as BasiliskV3Device but with different PID
+    """
+
+    vid = 0x1532
+    pid = 0x00AB
+    ifn = 3
+    
+    def _fix_interface_number(self, it):
+        # Run base fixes first
+        it = super()._fix_interface_number(it)
+        
+        # Workaround for Brave browser (tested with Brave 1.85.118 based on Chromium: 143.0.7499.169)
+        # Not sure if this is needed for all devices or just my combination of hardware and software.
+        # V3 Pro on this hardware+software combination reports as it["usage_page"]===1 instead of 12
+        fio = tuple(it.get("fio_count") or ())
+        if it.get("interface_number", -1) == -1 and self.pid == it["product_id"] and self.vid == it["vendor_id"]:
+            if len(fio) >= 1 and fio[0] > 0:
+                it["interface_number"] = self.ifn
+        return it
 
 if __name__ == '__main__':
     original_sr_with = BasiliskV3Device.sr_with
