@@ -85,7 +85,7 @@ const isPythonReady = computed(() => {
     <h1><img src="/snakemouse.svg" class="inline h-[1em]" />Razer Basilisk V3 Onboard Memory Tools</h1>
     <div>Browser must support WebHID to work, Click "Connect to mouse" and select device</div>
     <div>Select Razer Basilisk V3 or (1532:0099)</div>
-    <div>V3 Pro is also supported (1532:00AB)</div>
+    <div>V3 Pro is also supported (1532:00AA, 1532:00AB)</div>
     <div><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebHID_API#browser_compatibility" class="link">You browser</a> <span class="bg-success text-success-content" v-if="hasHid()">probably supports WebHID</span><span class="bg-error text-error-content" v-else>does not support WebHID</span></div>
     <button class="btn btn-primary block w-96" @click="requestDevice" :class="{'btn-disabled': !isPythonReady}">Connect to mouse</button>
     <button class="btn block w-96" @click="noHardwareMode" :class="{'btn-disabled': !isPythonReady}">Use without actual mouse</button>

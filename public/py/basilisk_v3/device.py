@@ -88,12 +88,13 @@ class BasiliskV3Device(Device):
 
 class BasiliskV3ProDevice(BasiliskV3Device):
     """
-    Basilisk V3 Pro with PID 0x00AB (171)
+    Basilisk V3 Pro with PID 0x00AA (wired) or 0x00AB (wireless)
     Supports the same protocol as BasiliskV3Device but with different PID
     """
 
     vid = 0x1532
-    pid = 0x00AB
+    pid = 0x00AA
+    pid_wireless = 0x00AB
     ifn = 3
     
     def _fix_interface_number(self, it):
@@ -104,7 +105,7 @@ class BasiliskV3ProDevice(BasiliskV3Device):
         # Not sure if this is needed for all devices or just my combination of hardware and software.
         # V3 Pro on this hardware+software combination reports as it["usage_page"]===1 instead of 12
         fio = tuple(it.get("fio_count") or ())
-        if it.get("interface_number", -1) == -1 and self.pid == it["product_id"] and self.vid == it["vendor_id"]:
+        if it.get("interface_number", -1) == -1 and (self.pid == it["product_id"] or self.pid_wireless == it["product_id"]) and self.vid == it["vendor_id"]:
             if len(fio) >= 1 and fio[0] > 0:
                 it["interface_number"] = self.ifn
         return it
