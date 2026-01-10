@@ -20,10 +20,13 @@ class BusType(enum.Enum):
     I2C = 0x03
     SPI = 0x04
 
-def enumerate(vid=0, pid=0):
+# We separate the logic for requesting device and enumerating device for WebHID
+# Because WebHID requestDevice needed user interaction
+# We only want one time user interaction
+def webhid_request_device():
     devices = await_js('''
         this.devices = await navigator.hid.requestDevice({filters: []});
-        const new_devices = [];
+        this.previous_requested_devices_info = [];
         for (let [i, d] of this.devices.entries()) {
             const dd = {
                 'path': i,
@@ -37,10 +40,16 @@ def enumerate(vid=0, pid=0):
                 'interface_number': -1,
                 'fio_count': [d.collections[0].featureReports.length, d.collections[0].inputReports.length, d.collections[0].outputReports.length],
             }
-            new_devices.push(dd);
+            this.previous_requested_devices_info.push(dd);
         }
-        console.log('selected devices', JSON.stringify(new_devices));
-        return new_devices;
+        console.log('selected devices', JSON.stringify(this.previous_requested_devices_info));
+        return this.previous_requested_devices_info;
+    ''').to_py()
+    return devices
+
+def enumerate(vid=0, pid=0):
+    devices = await_js('''
+        return this.previous_requested_devices_info;
     ''').to_py()
     return devices
 

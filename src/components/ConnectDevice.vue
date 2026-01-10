@@ -27,20 +27,18 @@ async function requestDevice(){
         BasiliskV3Device.sr_with = sr_with
 
     # Try connecting with the new PID (0x00AB) first, then fall back to old PID (0x0099)
+    hid.webhid_request_device()
     device = None
     for DeviceClass in [BasiliskV3ProDevice, BasiliskV3Device]:
         try:
             device = DeviceClass()
-            if custom_path is not None:
-                hid.enumerate()
             device.connect(path=custom_path)
             print('Connected with device:', DeviceClass.__name__)
             break
         except Exception as e:
             print(f'Failed to connect with {DeviceClass.__name__}: {e}')
             continue
-
-    if device is None:
+    else:
         raise RuntimeError('Could not connect to any device')
 
     print('device created', device.get_serial())
