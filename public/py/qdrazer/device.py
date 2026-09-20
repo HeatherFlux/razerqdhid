@@ -6,6 +6,11 @@ from time import sleep
 from . import protocol as pt
 
 class Device:
+    buttons_layout = []
+
+    def buttons(self):
+        return [pt.Button[n.upper()] for n in self.buttons_layout if n]
+
     
     def send(self, report):
         raise NotImplementedError
@@ -253,7 +258,7 @@ class Device:
         associated_macros = set()
         button_function = {}
         for hypershift in pt.Hypershift:
-            for button in pt.Button:
+            for button in self.buttons():
                 bf = button_function[button, hypershift] = self.get_button_function(button, hypershift, profile=profile)
                 if bf.get_subtype() == 'macro':
                     associated_macros.add(bf.get_macro()['macro_id'])
@@ -308,7 +313,7 @@ class Device:
         # button function
         if button_function := dump.get('button_function'):
             for hypershift in pt.Hypershift:
-                for button in pt.Button:
+                for button in self.buttons():
                     if fn := button_function.get((button, hypershift)):
                         self.set_button_function(fn, button, hypershift, profile=profile)
         

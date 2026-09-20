@@ -8,6 +8,14 @@ class BasiliskV3Device(Device):
     vid = 0x1532
     pid = 0x0099
     ifn = 3
+    model_name = 'Razer Basilisk V3'
+    # Button names shown in the UI (None = empty grid cell). Must be pt.Button member names, lowercased.
+    buttons_layout = [
+        'aim', 'left', 'middle', 'right',
+        'forward', 'wheel_up', 'middle_forward', 'wheel_left',
+        'backward', 'wheel_down', 'middle_backward', 'wheel_right',
+        'bottom',
+    ]
     
     def _fix_interface_number(self, it):
         """Hook for subclasses to fix interface detection issues."""
@@ -96,6 +104,7 @@ class BasiliskV3ProDevice(BasiliskV3Device):
     pid = 0x00AA
     pid_wireless = 0x00AB
     ifn = 3
+    model_name = 'Razer Basilisk V3 Pro'
     
     def _fix_interface_number(self, it):
         # Run base fixes first

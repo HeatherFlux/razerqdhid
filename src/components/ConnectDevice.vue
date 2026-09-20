@@ -15,8 +15,9 @@ async function requestDevice(){
     import hid
     hid.set_await_js(await_js)
     import qdrazer.protocol as pt
-    # Import both device classes and try the new PID first
+    # Import all device classes; the connect loop below tries each in turn
     from basilisk_v3.device import BasiliskV3ProDevice, BasiliskV3Device
+    from naga_v2.device import NagaV2HyperSpeedDevice
     if 'original_sr_with' not in globals():
         globals()['original_sr_with'] = BasiliskV3Device.sr_with
         def sr_with(self, *args, **kwargs):
@@ -29,7 +30,7 @@ async function requestDevice(){
     # Try connecting with the new PID (0x00AB) first, then fall back to old PID (0x0099)
     hid.webhid_request_device()
     device = None
-    for DeviceClass in [BasiliskV3ProDevice, BasiliskV3Device]:
+    for DeviceClass in [NagaV2HyperSpeedDevice, BasiliskV3ProDevice, BasiliskV3Device]:
         try:
             device = DeviceClass()
             device.connect(path=custom_path)
@@ -84,7 +85,7 @@ const isPythonReady = computed(() => {
   <div class="w-min-[30em] *:my-2">
     <h1><img src="/snakemouse.svg" class="inline h-[1em]" />Razer Basilisk V3 Onboard Memory Tools</h1>
     <div>Browser must support WebHID to work, Click "Connect to mouse" and select device</div>
-    <div>Select Razer Basilisk V3 or (1532:0099)</div>
+    <div>Select your Razer mouse: Basilisk V3 (1532:0099), Basilisk V3 Pro (1532:00AA/00AB) or Naga V2 HyperSpeed (1532:00B4). Pick the entry that shows as the mouse, not a keyboard.</div>
     <div>V3 Pro is also supported (1532:00AA, 1532:00AB)</div>
     <div><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebHID_API#browser_compatibility" class="link">You browser</a> <span class="bg-success text-success-content" v-if="hasHid()">probably supports WebHID</span><span class="bg-error text-error-content" v-else>does not support WebHID</span></div>
     <button class="btn btn-primary block w-96" @click="requestDevice" :class="{'btn-disabled': !isPythonReady}">Connect to mouse</button>

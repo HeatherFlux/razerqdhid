@@ -10,6 +10,7 @@ const props = defineProps<{
   py: RunPython;
   hard?: boolean; // should it interact with hardware or just dummy
   activeProfile: string;
+  buttonsLayout?: (string | null)[];
 }>();
 
 const bridgeData = defineModel<BridgeData>('bridgeData', {default: {}});
@@ -17,14 +18,17 @@ const bridgeStatus = defineModel<BridgeStatus>('bridgeStatus', {default: {}});
 
 const bridge = makeBridge(bridgeData, bridgeStatus, props);
 
-const buttonsLayout = [
+const defaultButtonsLayout = [
   'aim', 'left', 'middle', 'right',
   'forward', 'wheel_up', 'middle_forward', 'wheel_left',
   'backward', 'wheel_down', 'middle_backward', 'wheel_right',
   'bottom'
 ];
+// Grid cells; null = empty cell. Only real buttons get a bridge.
+const buttonsGrid: (string | null)[] = props.buttonsLayout ?? defaultButtonsLayout;
+const buttonsLayout: string[] = buttonsGrid.filter((b): b is string => b !== null);
 
-const selectedButton = ref('left');
+const selectedButton = ref(buttonsLayout.includes('left') ? 'left' : buttonsLayout[0]);
 const selectedHypershift = ref(false);
 
 const buttonFunctionMap: any = {};
@@ -207,13 +211,15 @@ function parseIntDefault(s: string, defaultValue: number) {
     <h2>Button</h2>
     <div class="flex flex-row items-baseline">
       <div class="grid grid-cols-4">
-        <button class="btn text-xs flex flex-col"
-          :class="{'btn-active': selectedButton === b, 'btn-warning': selectedHypershift}"
-          v-for="b in buttonsLayout"
-          @click="selectedButton = b">
-          <span>{{ b }}</span>
-          <span class="opacity-40">{{ buttonFunctionMap[b + (selectedHypershift ? '_hypershift' : '')].value[0] }}</span>
-        </button>
+        <template v-for="(b, i) in buttonsGrid" :key="i">
+          <button v-if="b !== null" class="btn text-xs flex flex-col"
+            :class="{'btn-active': selectedButton === b, 'btn-warning': selectedHypershift}"
+            @click="selectedButton = b">
+            <span>{{ b }}</span>
+            <span class="opacity-40">{{ buttonFunctionMap[b + (selectedHypershift ? '_hypershift' : '')].value[0] }}</span>
+          </button>
+          <div v-else></div>
+        </template>
       </div>
     </div>
     <div class="flex flex-row gap-4 place-items-center">

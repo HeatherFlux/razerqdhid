@@ -7,7 +7,7 @@ async function initPyodide() {
   let pyodide = await loadPyodide({
     indexURL: import.meta.env.BASE_URL + './pyodide',
   });
-  const py_files = 'webhid.py qdrazer/device.py qdrazer/protocol.py basilisk_v3/device.py';
+  const py_files = 'webhid.py qdrazer/device.py qdrazer/protocol.py basilisk_v3/device.py naga_v2/device.py';
   await pyodide.runPythonAsync(`
     from pyodide.http import pyfetch
     from asyncio import gather

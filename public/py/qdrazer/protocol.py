@@ -61,6 +61,21 @@ class Button(Enum):
     WHEEL_RIGHT = 0x35
     MIDDLE_BACKWARD = 0x60
     MIDDLE_FORWARD = 0x6a
+    # Naga V2 HyperSpeed (ids reported by the device's class 0x02 / 0x84 table)
+    BTN_0B = 0x0b
+    BTN_0C = 0x0c
+    THUMB_1 = 0x40
+    THUMB_2 = 0x41
+    THUMB_3 = 0x42
+    THUMB_4 = 0x43
+    THUMB_5 = 0x44
+    THUMB_6 = 0x45
+    THUMB_7 = 0x46
+    THUMB_8 = 0x47
+    THUMB_9 = 0x48
+    THUMB_10 = 0x49
+    THUMB_11 = 0x4a
+    THUMB_12 = 0x4b
 
 class Hypershift(Enum):
     OFF = 0x00

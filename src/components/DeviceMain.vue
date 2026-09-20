@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, ref, computed } from 'vue';
+import { inject, ref, computed, onMounted } from 'vue';
 import type { Ref } from 'vue';
 import MouseInfo from './MouseInfo.vue';
 import BasicConfig from './BasicConfig.vue';
@@ -53,10 +53,29 @@ const isConfigAllIdle = computed(() => {
 });
 const enableAllConfigSections = ref(false);
 
+// Per-device UI data, read from the connected Python device object.
+const deviceName = ref('Razer Basilisk V3');
+const buttonsLayout = ref<(string | null)[] | undefined>(undefined);
+const deviceInfoLoaded = ref(!props.hard);
+onMounted(async () => {
+  if (!props.hard || !runPython?.value) { return; }
+  try {
+    const info = await runPython.value(`
+{'name': getattr(device, 'model_name', 'Razer mouse'), 'layout': list(getattr(device, 'buttons_layout', []))}
+    `);
+    deviceName.value = info.name;
+    if (info.layout && info.layout.length) { buttonsLayout.value = info.layout; }
+  } catch (e) {
+    console.error('could not read device layout: ' + e);
+  } finally {
+    deviceInfoLoaded.value = true;
+  }
+});
+
 
 </script>
 <template>
-  <h1><img src="/snakemouse.svg" class="inline h-[1em]" />Razer Basilisk V3 Onboard Memory Tools</h1>
+  <h1><img src="/snakemouse.svg" class="inline h-[1em]" />{{ deviceName }} Onboard Memory Tools</h1>
   <div>
     Profile:
     <div class="join">
@@ -85,8 +104,8 @@ const enableAllConfigSections = ref(false);
             <BasicConfig v-if="activeTab === 'basic' || enableAllConfigSections" v-show="!enableAllConfigSections"
               :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"
               v-model:bridge-data="profileConfigData.basic" v-model:bridge-status="profileConfigStatus.basic"/>
-            <ButtonConfig v-if="activeTab === 'button' || enableAllConfigSections" v-show="!enableAllConfigSections"
-              :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"
+            <ButtonConfig v-if="deviceInfoLoaded && (activeTab === 'button' || enableAllConfigSections)" v-show="!enableAllConfigSections"
+              :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard" :buttons-layout="buttonsLayout"
               v-model:bridge-data="profileConfigData.button" v-model:bridge-status="profileConfigStatus.button"/>
             <LedConfig v-if="activeTab === 'led' || enableAllConfigSections" v-show="!enableAllConfigSections"
               :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"
