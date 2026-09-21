@@ -14,7 +14,14 @@ const logs = ref<[Date, string][]>([[new Date(), 'Ready']]);
 function addLog(text: string) {
   logs.value.push([new Date(), text]);
 }
-const lastLog = computed(() => logs.value[logs.value.length - 1]?.[1] ?? '');
+// Protocol chatter (s:/r:/python: lines) stays in the log but is skipped in the status line.
+const chatter = /^(s|r): |^python: \[\[/;
+const lastLog = computed(() => {
+  for (let i = logs.value.length - 1; i >= 0; i--) {
+    if (!chatter.test(logs.value[i][1])) { return logs.value[i][1]; }
+  }
+  return '';
+});
 const lastIsError = computed(() => /\berror\b/i.test(lastLog.value));
 
 var cl:Function, ce:Function, cw:Function;

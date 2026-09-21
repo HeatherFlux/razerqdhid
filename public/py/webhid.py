@@ -76,7 +76,7 @@ def find_device(vid=None, pid=None, serial=None, path=None):
 class Device(object):
     def __init__(self, vid=None, pid=None, serial=None, path=None):
         self.__dev = find_device(vid, pid, serial, path)
-        await_js(f'this.devices[{self.__dev}].open()')
+        await_js(f'await this.devices[{self.__dev}].open()')
 
     def __enter__(self):
         return self

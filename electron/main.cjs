@@ -13,6 +13,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+
 const RAZER_VID = 0x1532;
 const DIST = path.join(__dirname, '..', 'dist-desktop');
 const MIME = {

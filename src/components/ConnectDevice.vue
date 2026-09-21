@@ -6,11 +6,17 @@ const emit = defineEmits(['deviceCreated', 'deviceNotCreated']);
 const runPython = inject<Ref<Function | null>>('runPython');
 
 const customPath = ref(null);
+const connectError = ref<string | null>(null);
+const isElectron = /Electron/.test(navigator.userAgent);
+const busy = ref(false);
 
 async function requestDevice(){
   if (!runPython?.value) {
     return;
   }
+  connectError.value = null;
+  busy.value = true;
+  try {
   await runPython.value(`
     import hid
     hid.set_await_js(await_js)
@@ -42,9 +48,22 @@ async function requestDevice(){
     else:
         raise RuntimeError('Could not connect to any device')
 
-    print('device created', device.get_serial())
+    print('Connected:', getattr(device, 'model_name', type(device).__name__))
   `, {add: {custom_path: customPath.value}});
   emit('deviceCreated');
+  } catch (e: any) {
+    const msg = String(e?.message ?? e);
+    if (/NotAllowedError|Failed to open/.test(msg)) {
+      connectError.value = 'The mouse was found but could not be opened. On Linux this usually means your user has no access to its hidraw device; add a udev rule granting access, then try again.';
+    } else if (/Could not connect to any device|No device/.test(msg)) {
+      connectError.value = 'No supported mouse was selected.';
+    } else {
+      connectError.value = msg.split('\n').filter((l) => l.trim()).slice(-1)[0] ?? msg;
+    }
+    console.error('connect failed: ' + msg);
+  } finally {
+    busy.value = false;
+  }
 }
 async function noHardwareMode(){
   if (!runPython?.value) {
@@ -103,11 +122,14 @@ const isPythonReady = computed(() => {
         <div v-if="!hasHid()" role="alert" class="alert alert-error text-sm">
           <span>This browser has no WebHID. Use Chrome, Edge, or the desktop app.</span>
         </div>
-        <p v-else class="text-sm opacity-70">In the device picker, choose the entry listed as a mouse, not the keyboard one.</p>
+        <p v-else-if="!isElectron" class="text-sm opacity-70">In the device picker, choose the entry listed as a mouse, not the keyboard one.</p>
+        <div v-if="connectError" role="alert" class="alert alert-error text-sm">
+          <span>{{ connectError }}</span>
+        </div>
         <div class="flex flex-col gap-2">
-          <button class="btn btn-primary w-full" :disabled="!isPythonReady" @click="requestDevice">
-            <span v-if="!isPythonReady" class="loading loading-spinner loading-sm"></span>
-            {{ isPythonReady ? 'Connect to mouse' : 'Loading runtime' }}
+          <button class="btn btn-primary w-full" :disabled="!isPythonReady || busy" @click="requestDevice">
+            <span v-if="!isPythonReady || busy" class="loading loading-spinner loading-sm"></span>
+            {{ !isPythonReady ? 'Loading runtime' : busy ? 'Connecting' : 'Connect to mouse' }}
           </button>
           <button class="btn btn-ghost btn-sm w-full" :disabled="!isPythonReady" @click="noHardwareMode">Try without a mouse</button>
         </div>

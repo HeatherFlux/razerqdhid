@@ -47,7 +47,7 @@ list(a + b)
   <div class="min-w-[30em] *:my-2">
     <table class="table"><tbody>
       <tr><td colspan="2" class="subtitle">System</td></tr>
-      <tr><td>Serial</td><td>{{ serial }}</td></tr>
+      <tr><td>Serial</td><td>{{ serial || 'not reported' }}</td></tr>
       <tr><td>Firmware</td><td>{{ fwVersion }}</td></tr>
       <tr v-if="hasFlash"><td>Flash</td><td>
         <div>Total: {{ flashTotal / 256 }} ({{ filesize(flashTotal) }})</div>

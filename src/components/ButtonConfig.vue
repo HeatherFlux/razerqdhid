@@ -326,7 +326,7 @@ function summary(fn: any): string {
                 :value="selectedButtonFunction[1].turbo ?? 0"
                 @change="(event) => {selectedButtonFunction[1].turbo = parseIntDefault((event.target as HTMLInputElement).value, 200)}"/>
               ms
-              <span class="opacity-60">({{ isFinite(1000 / selectedButtonFunction[1].turbo) ? (1000 / selectedButtonFunction[1].turbo).toFixed(1) : '-' }}/s)</span>
+              <span class="opacity-60" v-if="selectedButtonFunction[1].turbo != null">({{ (1000 / selectedButtonFunction[1].turbo).toFixed(1) }}/s)</span>
             </span>
           </div>
         </div>
@@ -335,7 +335,7 @@ function summary(fn: any): string {
           <label class="flex items-center gap-3 text-sm">
             <span class="w-28">Key</span>
             <select class="select select-bordered select-sm w-64" v-model="selectedButtonFunction[1].key">
-              <option v-for="[code, name] in Object.entries(hidKeyboardCode)" :value="parseInt(code)">{{ keyLabel(parseInt(code)) }} <span class="opacity-50">({{ name }})</span></option>
+              <option v-for="[code, name] in Object.entries(hidKeyboardCode)" :value="parseInt(code)">{{ keyLabel(parseInt(code)) }} ({{ name }})</option>
             </select>
             <span class="opacity-60">code</span>
             <input type="number" min="0" max="255" class="input input-sm input-bordered w-20"
