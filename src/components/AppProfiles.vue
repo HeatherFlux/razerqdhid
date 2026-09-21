@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onBeforeUnmount } from 'vue';
 import { appProfiles, captureProfile, deleteProfile, applyProfile } from '../appProfiles';
 
 const newName = ref('');
@@ -7,10 +7,37 @@ const captureFrom = ref('direct');
 const windows = ref<DesktopWindowInfo[]>([]);
 const profileNames = computed(() => Object.keys(appProfiles.profiles).sort());
 
+type Candidate = { kind: 'running' | 'steam' | 'app'; name: string; cls: string; title?: string };
+const apps = ref<{ kind: 'steam' | 'app'; name: string; cls: string }[]>([]);
+const query = ref('');
+
 async function refreshWindows() {
   windows.value = (await window.desktop?.windows()) ?? [];
 }
-refreshWindows();
+async function refreshApps() {
+  apps.value = (await window.desktop?.apps()) ?? [];
+}
+refreshWindows(); refreshApps();
+const winTimer = window.setInterval(refreshWindows, 5000);
+onBeforeUnmount(() => clearInterval(winTimer));
+
+const OWN = 'razer-onboard-config';
+const candidates = computed<Candidate[]>(() => {
+  const q = query.value.trim().toLowerCase();
+  const seenRunning = new Set<string>();
+  const running: Candidate[] = [];
+  for (const w of windows.value) {
+    if (w.cls === OWN || seenRunning.has(w.cls)) { continue; }
+    seenRunning.add(w.cls);
+    running.push({ kind: 'running', name: w.cls, cls: w.cls, title: w.title });
+  }
+  const hit = (c: Candidate) => !q || c.name.toLowerCase().includes(q) || c.cls.toLowerCase().includes(q);
+  const rest = apps.value.filter((a) => !seenRunning.has(a.cls)).map((a) => ({ ...a } as Candidate));
+  const list = [...running.filter(hit), ...rest.filter(hit)];
+  return q ? list.slice(0, 40) : [...running, ...rest.filter((c) => c.kind === 'steam').slice(0, 8)];
+});
+const ruleExists = (cls: string) => appProfiles.rules.some((r) => r.match === '^' + escapeRe(cls) + '$');
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 async function saveNew() {
   const name = newName.value.trim();
@@ -18,9 +45,9 @@ async function saveNew() {
   if (await captureProfile(name, captureFrom.value)) { newName.value = ''; }
 }
 
-function addRule(cls?: string) {
-  const match = cls ? '^' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$' : '';
-  appProfiles.rules.push({ match, profile: profileNames.value[0] ?? '', enabled: true });
+function addRule(cls?: string, label?: string) {
+  const match = cls ? '^' + escapeRe(cls) + '$' : '';
+  appProfiles.rules.push({ match, profile: profileNames.value[0] ?? '', enabled: true, label });
 }
 function removeRule(i: number) { appProfiles.rules.splice(i, 1); }
 function moveRule(i: number, d: number) {
@@ -29,7 +56,6 @@ function moveRule(i: number, d: number) {
   const [r] = appProfiles.rules.splice(i, 1);
   appProfiles.rules.splice(j, 0, r);
 }
-const isGame = (cls: string) => /^steam_app_/.test(cls);
 </script>
 <template>
   <div class="flex flex-col gap-4">
@@ -87,26 +113,36 @@ const isGame = (cls: string) => /^steam_app_/.test(cls);
 
     <div class="card bg-base-100 shadow-sm">
       <div class="card-body p-5 gap-3">
+        <h2 class="mb-0">Add a rule</h2>
+        <p class="text-sm opacity-70">Pick the app or game the rule is for. Running windows are listed first; type to search installed Steam games and apps.</p>
+        <input type="text" class="input input-sm input-bordered w-full" placeholder="Search apps and games" v-model="query"/>
+        <div class="flex flex-col divide-y divide-base-300 max-h-72 overflow-auto -mx-2">
+          <div v-for="c in candidates" :key="c.kind + c.cls" class="flex items-center gap-3 px-2 py-1.5 text-sm">
+            <span class="badge badge-xs w-16 justify-center"
+              :class="c.kind === 'running' ? 'badge-success' : c.kind === 'steam' ? 'badge-info' : 'badge-ghost'">{{ c.kind === 'running' ? 'running' : c.kind === 'steam' ? 'steam' : 'app' }}</span>
+            <span class="flex-1 min-w-0">
+              <span class="block truncate">{{ c.name }}</span>
+              <span class="block font-mono text-xs opacity-50 truncate">{{ c.kind === 'running' ? (c.title || c.cls) : c.cls }}</span>
+            </span>
+            <button class="btn btn-xs" :disabled="ruleExists(c.cls) || !profileNames.length" @click="addRule(c.cls, c.name)">{{ ruleExists(c.cls) ? 'added' : 'Add' }}</button>
+          </div>
+          <div v-if="!candidates.length" class="px-2 py-2 text-sm opacity-50">Nothing matches.</div>
+        </div>
+        <div v-if="!profileNames.length" class="text-xs opacity-60">Save a profile first, then add rules that use it.</div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-5 gap-3">
         <div class="flex items-center justify-between">
           <h2 class="mb-0">Rules</h2>
-          <div class="flex items-center gap-2">
-            <div class="dropdown dropdown-end">
-              <button tabindex="0" class="btn btn-xs" @click="refreshWindows">From running window</button>
-              <ul tabindex="0" class="dropdown-content menu menu-xs bg-base-200 rounded-box z-10 w-80 p-2 shadow max-h-72 overflow-auto flex-nowrap">
-                <li v-for="w in windows" :key="w.cls + w.title"><a @click="addRule(w.cls)">
-                  <span class="font-mono truncate">{{ w.cls }}</span>
-                  <span v-if="isGame(w.cls)" class="badge badge-xs badge-success">game</span>
-                </a></li>
-                <li v-if="!windows.length" class="opacity-50 px-2">no windows found</li>
-              </ul>
-            </div>
-            <button class="btn btn-xs btn-ghost" @click="addRule()">Add empty</button>
-          </div>
+          <button class="btn btn-xs btn-ghost" @click="addRule()">Add custom pattern</button>
         </div>
-        <p class="text-sm opacity-70">Rules are checked top to bottom against the window class. Steam games appear as <span class="font-mono">steam_app_&lt;id&gt;</span>. Matching is a regular expression, case-insensitive.</p>
+        <p class="text-sm opacity-70">Checked top to bottom against the window class. Patterns are regular expressions, case-insensitive.</p>
         <div v-if="!appProfiles.rules.length" class="text-sm opacity-50">No rules yet.</div>
         <div v-for="(r, i) in appProfiles.rules" :key="i" class="flex items-center gap-2 text-sm">
           <input type="checkbox" class="toggle toggle-xs" v-model="r.enabled"/>
+          <span class="w-36 truncate" :class="{'opacity-40': !r.label}">{{ r.label || 'custom' }}</span>
           <input type="text" class="input input-sm input-bordered font-mono flex-1" placeholder="^steam_app_1374490$" v-model="r.match"/>
           <span class="opacity-60">use</span>
           <select class="select select-bordered select-sm w-44" v-model="r.profile">

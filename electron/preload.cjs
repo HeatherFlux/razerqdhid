@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('desktop', {
   },
   activeWindow: () => ipcRenderer.invoke('active-window'),
   windows: () => ipcRenderer.invoke('windows'),
+  apps: () => ipcRenderer.invoke('apps'),
   loadStore: () => ipcRenderer.invoke('store:load'),
   saveStore: (data) => ipcRenderer.invoke('store:save', data),
   quit: () => ipcRenderer.invoke('quit'),

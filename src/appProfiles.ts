@@ -11,7 +11,7 @@ export type Snapshot = {
   buttons: { [key: string]: string }; // 'BUTTON|HYPERSHIFT' -> 7 hex bytes
   dpi: { stages: number[][]; active: number } | null;
 };
-export type Rule = { match: string; profile: string; enabled: boolean };
+export type Rule = { match: string; profile: string; enabled: boolean; label?: string };
 
 export const appProfiles = reactive({
   available: false,

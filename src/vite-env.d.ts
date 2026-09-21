@@ -9,6 +9,7 @@ interface DesktopApi {
   onActiveWindow(cb: (win: DesktopWindowInfo) => void): () => void;
   activeWindow(): Promise<DesktopWindowInfo | null>;
   windows(): Promise<DesktopWindowInfo[]>;
+  apps(): Promise<{ kind: 'steam' | 'app'; name: string; cls: string }[]>;
   loadStore(): Promise<any>;
   saveStore(data: any): Promise<boolean>;
   quit(): Promise<void>;

@@ -135,6 +135,76 @@ ipcMain.handle('windows', async () => {
     .map((c) => ({ cls: c.class, title: c.title, workspace: c.workspace && c.workspace.id }));
 });
 
+// ---- app catalogue for the rule picker: Steam games + desktop entries ----
+let appsCache = { t: 0, list: [] };
+function steamGames() {
+  const home = app.getPath('home');
+  const libs = new Set([path.join(home, '.local/share/Steam'), path.join(home, '.steam/steam')]);
+  for (const root of [...libs]) {
+    try {
+      const vdf = fs.readFileSync(path.join(root, 'steamapps/libraryfolders.vdf'), 'utf8');
+      for (const m of vdf.matchAll(/"path"\s+"([^"]+)"/g)) { libs.add(m[1]); }
+    } catch { /* no vdf here */ }
+  }
+  const out = [];
+  for (const lib of libs) {
+    const dir = path.join(lib, 'steamapps');
+    let files = [];
+    try { files = fs.readdirSync(dir).filter((f) => /^appmanifest_\d+\.acf$/.test(f)); } catch { continue; }
+    for (const f of files) {
+      try {
+        const acf = fs.readFileSync(path.join(dir, f), 'utf8');
+        const id = (acf.match(/"appid"\s+"(\d+)"/) || [])[1];
+        const name = (acf.match(/"name"\s+"([^"]+)"/) || [])[1];
+        if (!id || !name) { continue; }
+        if (/Steam Linux Runtime|^Proton|Steamworks Common/i.test(name)) { continue; }
+        if (out.some((g) => g.cls === `steam_app_${id}`)) { continue; } // same game in two libraries
+        out.push({ kind: 'steam', name, cls: `steam_app_${id}` });
+      } catch { /* skip */ }
+    }
+  }
+  return out;
+}
+function desktopApps() {
+  const home = app.getPath('home');
+  const dirs = ['/usr/share/applications', '/usr/local/share/applications',
+    path.join(home, '.local/share/applications'),
+    '/var/lib/flatpak/exports/share/applications', path.join(home, '.local/share/flatpak/exports/share/applications')];
+  const out = [];
+  for (const dir of dirs) {
+    let files = [];
+    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.desktop')); } catch { continue; }
+    for (const f of files) {
+      try {
+        const txt = fs.readFileSync(path.join(dir, f), 'utf8');
+        const entry = txt.split(/\n\[/)[0]; // [Desktop Entry] section only
+        const get = (k) => (entry.match(new RegExp(`^${k}=(.*)$`, 'm')) || [])[1];
+        if (get('Type') && get('Type') !== 'Application') { continue; }
+        if (get('NoDisplay') === 'true' || get('Hidden') === 'true') { continue; }
+        const name = get('Name'); const exec = get('Exec') || '';
+        if (!name || /steam:\/\//.test(exec)) { continue; } // Steam shortcuts come from the manifests
+        let cls = get('StartupWMClass');
+        if (!cls) {
+          const parts = exec.replace(/^env(\s+\S+=\S+)*\s+/, '').split(/\s+/);
+          if (parts[0] === 'flatpak' && parts.includes('run')) { cls = parts[parts.indexOf('run') + 1] || ''; cls = cls.replace(/^--\S+/, ''); }
+          else { cls = path.basename(parts[0] || ''); }
+        }
+        if (!cls) { continue; }
+        out.push({ kind: 'app', name, cls, source: f });
+      } catch { /* skip */ }
+    }
+  }
+  // de-duplicate by class, keep first
+  const seen = new Set();
+  return out.filter((a) => { const k = a.cls.toLowerCase(); if (seen.has(k)) { return false; } seen.add(k); return true; });
+}
+ipcMain.handle('apps', () => {
+  if (Date.now() - appsCache.t > 60000) {
+    appsCache = { t: Date.now(), list: [...steamGames(), ...desktopApps()] };
+  }
+  return appsCache.list;
+});
+
 function watchHyprland() {
   if (!HYPR) { console.error('no Hyprland instance found; per-app switching is off'); return; }
   const sock = HYPR.socket;
