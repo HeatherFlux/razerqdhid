@@ -56,15 +56,17 @@ const enableAllConfigSections = ref(false);
 // Per-device UI data, read from the connected Python device object.
 const deviceName = ref('Razer Basilisk V3');
 const buttonsLayout = ref<(string | null)[] | undefined>(undefined);
+const unsupported = ref<string[]>([]);
 const deviceInfoLoaded = ref(!props.hard);
 onMounted(async () => {
   if (!props.hard || !runPython?.value) { return; }
   try {
     const info = await runPython.value(`
-{'name': getattr(device, 'model_name', 'Razer mouse'), 'layout': list(getattr(device, 'buttons_layout', []))}
+{'name': getattr(device, 'model_name', 'Razer mouse'), 'layout': list(getattr(device, 'buttons_layout', [])), 'unsupported': list(getattr(device, 'unsupported', ()))}
     `);
     deviceName.value = info.name;
     if (info.layout && info.layout.length) { buttonsLayout.value = info.layout; }
+    unsupported.value = info.unsupported ?? [];
   } catch (e) {
     console.error('could not read device layout: ' + e);
   } finally {
@@ -101,8 +103,8 @@ onMounted(async () => {
       <div v-else>
         <Suspense>
           <div>
-            <BasicConfig v-if="activeTab === 'basic' || enableAllConfigSections" v-show="!enableAllConfigSections"
-              :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"
+            <BasicConfig v-if="deviceInfoLoaded && (activeTab === 'basic' || enableAllConfigSections)" v-show="!enableAllConfigSections"
+              :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard" :unsupported="unsupported"
               v-model:bridge-data="profileConfigData.basic" v-model:bridge-status="profileConfigStatus.basic"/>
             <ButtonConfig v-if="deviceInfoLoaded && (activeTab === 'button' || enableAllConfigSections)" v-show="!enableAllConfigSections"
               :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard" :buttons-layout="buttonsLayout"

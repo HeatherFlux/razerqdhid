@@ -28,6 +28,8 @@ class NagaV2HyperSpeedDevice(BasiliskV3Device):
     pid = 0x00B4
     ifn = 0
     model_name = 'Razer Naga V2 HyperSpeed'
+    # No free-spin wheel: 0x94/0x96/0x97 (and their setters) answer NOT_SUPPORTED.
+    unsupported = ('scroll_mode', 'scroll_acceleration', 'scroll_smart_reel')
     buttons_layout = [
         'left', 'middle', 'right', 'wheel_up',
         'wheel_left', 'wheel_right', 'dpi_up', 'wheel_down',

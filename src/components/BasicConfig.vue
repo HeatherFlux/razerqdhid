@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { RunPython } from '../main';
 import { BridgeData, BridgeStatus, makeBridge } from './bridge';
@@ -8,31 +8,33 @@ const props = defineProps<{
   py: RunPython;
   hard?: boolean; // should it interact with hardware or just dummy
   activeProfile: string;
+  unsupported?: string[]; // settings the connected model rejects (see Device.unsupported)
 }>();
+const has = (feature: string) => !(props.unsupported ?? []).includes(feature);
 
 const bridgeData = defineModel<BridgeData>('bridgeData', {default: {}});
 const bridgeStatus = defineModel<BridgeStatus>('bridgeStatus', {default: {}});
 
 const bridge = makeBridge(bridgeData, bridgeStatus, props);
 
-const scrollMode = bridge<string>('scrollMode', 'tactile',
+const scrollMode = has('scroll_mode') ? bridge<string>('scrollMode', 'tactile',
   'device.get_scroll_mode(%p).name.lower()', () => ({}),
   'device.set_scroll_mode(pt.ScrollMode[x.upper()], %p)', (value) => ({x: value}),
-);
+) : ref('tactile');
 const scrollModeToggle = computed({
   get: () => scrollMode.value === 'freespin',
   set: (value) => scrollMode.value = value ? 'freespin' : 'tactile'
 });
 
-const scrollAcceleration = bridge<Boolean>('scrollAcceleration', false,
+const scrollAcceleration = has('scroll_acceleration') ? bridge<Boolean>('scrollAcceleration', false,
   'device.get_scroll_acceleration(%p)', () => ({}),
   'device.set_scroll_acceleration(x, %p)', (value) => ({x: value}),
-);
+) : ref(false);
 
-const scrollSmartReel = bridge<Boolean>('scrollSmartReel', false,
+const scrollSmartReel = has('scroll_smart_reel') ? bridge<Boolean>('scrollSmartReel', false,
   'device.get_scroll_smart_reel(%p)', () => ({}),
   'device.set_scroll_smart_reel(x, %p)', (value) => ({x: value}),
-);
+) : ref(false);
 
 const pollingRate = bridge<number>('pollingRate', 1,
   'device.get_polling_rate(%p)', () => ({}),
@@ -75,23 +77,31 @@ function dpiCopyXY() {
 </script>
 <template>
   <div class="form-control">
+    <template v-if="has('scroll_mode') || has('scroll_acceleration') || has('scroll_smart_reel')">
     <h2>Scroll</h2>
     <div class="grid grid-cols-2 place-items-baseline">
+      <template v-if="has('scroll_mode')">
       <span>Wheel mode</span>
       <label class="label cursor-pointer space-x-4">
         <span class="label-text">Tactile</span>
         <input type="checkbox" class="toggle toggle-sm" v-model="scrollModeToggle"/>
         <span class="label-text">Freespin</span>
       </label>
+      </template>
+      <template v-if="has('scroll_acceleration')">
       <span>Acceleration</span>
       <label class="label cursor-pointer space-x-4">
         <input type="checkbox" class="toggle toggle-sm" v-model="scrollAcceleration"/>
       </label>
+      </template>
+      <template v-if="has('scroll_smart_reel')">
       <span>Smart Reel</span>
       <label class="label cursor-pointer space-x-4">
         <input type="checkbox" class="toggle toggle-sm" v-model="scrollSmartReel"/>
       </label>
+      </template>
     </div>
+    </template>
     <h2>Polling rate</h2>
     <div class="flex flex-row gap-4">
       <div>Report every <input type="number" min="1" max="255" class="input input-sm input-bordered w-16" v-model.lazy="pollingRateInput"/> ms</div>

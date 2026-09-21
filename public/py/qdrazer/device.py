@@ -7,6 +7,9 @@ from . import protocol as pt
 
 class Device:
     buttons_layout = []
+    # Names of simple settings this model rejects (status NOT_SUPPORTED),
+    # e.g. 'scroll_mode'. dump/restore skip them and the UI hides them.
+    unsupported = ()
 
     def buttons(self):
         return [pt.Button[n.upper()] for n in self.buttons_layout if n]
@@ -249,6 +252,7 @@ class Device:
             'scroll_mode', 'scroll_acceleration', 'scroll_smart_reel',
             'polling_rate', 'dpi_xy', 'dpi_stages'
         ]
+        simple = [n for n in simple if n not in self.unsupported]
         dump = {}
         for name in simple:
             ret = getattr(self, 'get_' + name)(profile=profile)
@@ -294,6 +298,7 @@ class Device:
             'scroll_mode', 'scroll_acceleration', 'scroll_smart_reel',
             'polling_rate', 'dpi_xy', 'dpi_stages'
         ]
+        simple = [n for n in simple if n not in self.unsupported]
         for name in simple:
             if dump[name]:
                 f = getattr(self, 'set_' + name)
