@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import ConnectDevice from './components/ConnectDevice.vue';
 import DeviceMain from './components/DeviceMain.vue';
 import LogConsole from './components/LogConsole.vue';
+import { hasDesktop } from './appProfiles';
 
 const connected = ref(false);
 const hard = ref(false);
@@ -15,7 +16,7 @@ function addLog(text: string) {
   logs.value.push([new Date(), text]);
 }
 // Protocol chatter (s:/r:/python: lines) stays in the log but is skipped in the status line.
-const chatter = /^(s|r): |^python: \[\[/;
+const chatter = /^(s|r): |^python: \[\[|^read failed: /;
 const lastLog = computed(() => {
   for (let i = logs.value.length - 1; i >= 0; i--) {
     if (!chatter.test(logs.value[i][1])) { return logs.value[i][1]; }
@@ -57,6 +58,8 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error(`${event.type}: ${event.reason}`);
 });
 
+function quitApp() { window.desktop?.quit(); }
+
 function toggleConsole() {
   showConsole.value = !showConsole.value;
   if (logConsole.value) { logConsole.value.scrollToBottom(); }
@@ -82,6 +85,7 @@ function toggleConsole() {
       <div class="flex items-center gap-3 px-4 h-8 text-xs">
         <button class="btn btn-ghost btn-xs" @click="toggleConsole">{{ showConsole ? 'Hide log' : 'Log' }}</button>
         <span class="truncate font-mono" :class="lastIsError ? 'text-error' : 'opacity-60'">{{ lastLog }}</span>
+        <button v-if="hasDesktop()" class="btn btn-ghost btn-xs ml-auto" @click="quitApp">Quit</button>
       </div>
       <LogConsole v-show="showConsole" ref="logConsole" :messages="logs" />
     </footer>

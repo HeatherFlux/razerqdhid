@@ -36,6 +36,8 @@ export function makeBridge(bridgeData: ModelRef<BridgeData>, bridgeStatus: Model
             noWriteOnce = true;
             modelRef.value = r;
           }
+        }).catch((e: any) => {
+          console.log('read failed: ' + name + ': ' + String(e?.message ?? e).split('\n').filter((l) => l.trim()).slice(-1)[0]);
         }).finally(() => {
           if (name) { bridgeStatus.value[name] = 'idle'; }
         });

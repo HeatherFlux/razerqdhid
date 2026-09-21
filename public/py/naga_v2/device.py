@@ -1,4 +1,7 @@
+from time import sleep
+
 from basilisk_v3.device import BasiliskV3Device
+from qdrazer import protocol as pt
 
 
 class NagaV2HyperSpeedDevice(BasiliskV3Device):
@@ -41,6 +44,20 @@ class NagaV2HyperSpeedDevice(BasiliskV3Device):
         'thumb_7', 'thumb_8', 'thumb_9', None,
         'thumb_10', 'thumb_11', 'thumb_12', None,
     ]
+
+    def send_recv(self, report, *, wait_power=0):
+        # Over the 2.4 GHz receiver the mouse answers TIMEOUT while asleep or
+        # just waking. Give it a few chances before reporting the failure.
+        last = None
+        for attempt in range(4):
+            try:
+                return super().send_recv(report, wait_power=wait_power)
+            except pt.RazerException as e:
+                last = e
+                if 'TIMEOUT' not in str(e):
+                    raise
+                sleep(0.15 * (attempt + 1))
+        raise last
 
     def _fix_interface_number(self, it):
         fio = tuple(it.get('fio_count') or ())

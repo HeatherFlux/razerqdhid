@@ -7,22 +7,41 @@
 // WebHID: Chromium's device picker does not exist in Electron, so the
 // 'select-hid-device' handler picks the Razer interface that carries a feature
 // report (the vendor control interface) automatically.
+//
+// Per-app profiles: on Hyprland the main process follows the compositor's event
+// socket and forwards 'activewindow' changes to the page, which writes the
+// matching bindings into the mouse's direct profile. Closing the window hides it
+// to the tray so that keeps working; Quit is in the tray menu and the footer.
 'use strict';
-const { app, BrowserWindow, session } = require('electron');
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+
+const { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const http = require('node:http');
 const fs = require('node:fs');
+const net = require('node:net');
 const path = require('node:path');
-
-process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+const { execFile } = require('node:child_process');
 
 const RAZER_VID = 0x1532;
 const DIST = path.join(__dirname, '..', 'dist-desktop');
+const ICON = path.join(__dirname, 'icon.png');
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.py': 'text/x-python',
   '.zip': 'application/zip', '.ts': 'text/plain', '.map': 'application/json',
 };
+
+let win = null;
+let tray = null;
+let quitting = false;
+
+// ---- single instance: a second launch just shows the existing window ----
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => showWindow());
+}
 
 function serveDist() {
   return new Promise((resolve, reject) => {
@@ -62,24 +81,118 @@ function setupHid(ses) {
   });
 }
 
+// ---- persistent store (rules + saved profiles) ----
+const storePath = () => path.join(app.getPath('userData'), 'app-profiles.json');
+ipcMain.handle('store:load', () => {
+  try { return JSON.parse(fs.readFileSync(storePath(), 'utf8')); } catch { return null; }
+});
+ipcMain.handle('store:save', (_e, data) => {
+  fs.mkdirSync(path.dirname(storePath()), { recursive: true });
+  fs.writeFileSync(storePath(), JSON.stringify(data, null, 2));
+  return true;
+});
+ipcMain.handle('quit', () => { quitting = true; app.quit(); });
+
+// ---- Hyprland: focused window + window list ----
+function hyprctl(args) {
+  return new Promise((resolve) => {
+    execFile('hyprctl', [...args, '-j'], { timeout: 3000 }, (err, stdout) => {
+      if (err) { resolve(null); return; }
+      try { resolve(JSON.parse(stdout)); } catch { resolve(null); }
+    });
+  });
+}
+ipcMain.handle('active-window', async () => {
+  const w = await hyprctl(['activewindow']);
+  return w && w.class !== undefined ? { cls: w.class, title: w.title } : null;
+});
+ipcMain.handle('windows', async () => {
+  const list = await hyprctl(['clients']);
+  if (!Array.isArray(list)) { return []; }
+  return list.filter((c) => c.mapped !== false && c.class)
+    .map((c) => ({ cls: c.class, title: c.title, workspace: c.workspace && c.workspace.id }));
+});
+
+function watchHyprland() {
+  const sig = process.env.HYPRLAND_INSTANCE_SIGNATURE;
+  const runtime = process.env.XDG_RUNTIME_DIR;
+  if (!sig || !runtime) { return; }
+  const sock = path.join(runtime, 'hypr', sig, '.socket2.sock');
+  let buffer = '';
+  const connect = () => {
+    const client = net.createConnection(sock);
+    client.setEncoding('utf8');
+    client.on('data', (chunk) => {
+      buffer += chunk;
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl); buffer = buffer.slice(nl + 1);
+        if (line.startsWith('activewindow>>')) {
+          const rest = line.slice('activewindow>>'.length);
+          const comma = rest.indexOf(',');
+          const cls = comma >= 0 ? rest.slice(0, comma) : rest;
+          const title = comma >= 0 ? rest.slice(comma + 1) : '';
+          if (win && !win.isDestroyed()) { win.webContents.send('active-window', { cls, title }); }
+        }
+      }
+    });
+    client.on('error', () => {});
+    client.on('close', () => setTimeout(connect, 5000));
+  };
+  connect();
+}
+
+function showWindow() {
+  if (!win) { return; }
+  if (win.isMinimized()) { win.restore(); }
+  win.show();
+  win.focus();
+}
+
+function makeTray() {
+  try {
+    tray = new Tray(nativeImage.createFromPath(ICON));
+    tray.setToolTip('Razer Onboard Config');
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Show', click: showWindow },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { quitting = true; app.quit(); } },
+    ]));
+    tray.on('click', showWindow);
+  } catch (e) {
+    console.error('tray unavailable: ' + e.message);
+  }
+}
+
 app.whenReady().then(async () => {
   setupHid(session.defaultSession);
   const port = await serveDist();
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 1100,
     height: 800,
     minWidth: 820,
     minHeight: 560,
     title: 'Razer Onboard Config',
     autoHideMenuBar: true,
-    icon: path.join(__dirname, 'icon.png'),
+    icon: ICON,
     backgroundColor: '#1f232a',
-    webPreferences: { contextIsolation: true, sandbox: true },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  // Closing hides to the tray so automatic profile switching keeps running.
+  win.on('close', (e) => {
+    if (!quitting) { e.preventDefault(); win.hide(); }
   });
   win.loadURL(`http://127.0.0.1:${port}/`);
+  makeTray();
+  watchHyprland();
 }).catch((err) => {
   console.error(err.message);
   app.exit(1);
 });
 
-app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => { quitting = true; });
+app.on('window-all-closed', () => { /* keep running in the tray */ });

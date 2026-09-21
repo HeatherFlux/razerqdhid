@@ -10,6 +10,8 @@ import MacroConfig from './MacroConfig.vue';
 import SensorConfig from './SensorConfig.vue';
 import LedConfig from './LedConfig.vue';
 import PythonRunner from './PythonRunner.vue';
+import AppProfiles from './AppProfiles.vue';
+import { hasDesktop, startAppProfiles } from '../appProfiles';
 
 const props = defineProps<{
   hard?: boolean;
@@ -89,6 +91,7 @@ _info()
   } finally {
     deviceInfoLoaded.value = true;
   }
+  if (hasDesktop()) { startAppProfiles(runPython.value); }
 });
 
 const visibleProfiles = computed(() => ['direct', ...onboardProfileNames.slice(0, profileSlots.value)]);
@@ -100,6 +103,7 @@ const tabs = computed(() => [
   { id: 'profile', label: 'Profiles' },
   ...(unsupported.value.includes('macros') ? [] : [{ id: 'macro', label: 'Macros' }]),
   { id: 'sensor', label: 'Sensor' },
+  ...(hasDesktop() && props.hard ? [{ id: 'apps', label: 'Apps' }] : []),
   { id: 'info', label: 'Device' },
 ]);
 
@@ -152,6 +156,7 @@ const tabs = computed(() => [
                   :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"/>
                 <SensorConfig v-if="activeTab === 'sensor'"
                   :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"/>
+                <AppProfiles v-if="activeTab === 'apps'" />
                 <MouseInfo v-if="activeTab === 'info' && hard"
                   :key="refreshKey" :py="runPython" :unsupported="unsupported"/>
                 <div v-if="activeTab === 'info' && !hard" class="opacity-60">No hardware connected</div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onBeforeUnmount } from 'vue';
 
 import { RunPython } from '../main';
 import { BridgeData, BridgeStatus, makeBridge } from './bridge';
@@ -49,13 +49,22 @@ const pollingRateRange = computed({
   set: (value) => {pollingRate.value = {4:1, 3:2, 2:4, 1:8, 0:16}[value] ?? 1},
 });
 
+// Re-read DPI every 2 s while idle so the DPI buttons on the mouse show up here.
+const dpiTick = ref(0);
+const dpiPoll = window.setInterval(() => {
+  if (!props.hard) { return; }
+  const st = bridgeStatus.value;
+  if ((st.dpiXy ?? 'idle') === 'idle' && (st.dpiStages ?? 'idle') === 'idle') { dpiTick.value++; }
+}, 2000);
+onBeforeUnmount(() => clearInterval(dpiPoll));
+
 const dpiXy = bridge<[number, number]>('dpiXy', [800, 800],
-  'device.get_dpi_xy(%p)', () => ({}),
+  'device.get_dpi_xy(%p)', () => ({tick: dpiTick.value}),
   'device.set_dpi_xy((x, y), %p)', (value) => ({x: value[0], y: value[1]}),
 );
 
 const dpiStages = bridge<[[number, number][], number]>('dpiStages', [[[800, 800]], 1],
-  'device.get_dpi_stages(%p)', () => ({}),
+  'device.get_dpi_stages(%p)', () => ({tick: dpiTick.value}),
   'device.set_dpi_stages(ds, acs, %p)', (value) => ({ds: JSON.parse(JSON.stringify(value[0])), acs: value[1]}),
 );
 
