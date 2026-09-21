@@ -164,6 +164,7 @@ async function verifyApplied() {
 
 export async function startAppProfiles(runPython: RunPython) {
   if (!hasDesktop() || appProfiles.ready) { return; }
+  (window as any).__appProfiles = appProfiles; // for debugging from devtools
   py = runPython;
   appProfiles.available = true;
   const saved = await window.desktop!.loadStore();

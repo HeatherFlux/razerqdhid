@@ -94,9 +94,31 @@ ipcMain.handle('store:save', (_e, data) => {
 ipcMain.handle('quit', () => { quitting = true; app.quit(); });
 
 // ---- Hyprland: focused window + window list ----
+// Launchers do not always pass HYPRLAND_INSTANCE_SIGNATURE along, so find the
+// running instance ourselves: newest directory under $XDG_RUNTIME_DIR/hypr that
+// has an event socket.
+function hyprInstance() {
+  const runtime = process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid()}`;
+  const base = path.join(runtime, 'hypr');
+  let sig = process.env.HYPRLAND_INSTANCE_SIGNATURE;
+  if (!sig || !fs.existsSync(path.join(base, sig, '.socket2.sock'))) {
+    try {
+      const dirs = fs.readdirSync(base)
+        .filter((d) => fs.existsSync(path.join(base, d, '.socket2.sock')))
+        .map((d) => ({ d, t: fs.statSync(path.join(base, d)).mtimeMs }))
+        .sort((a, b) => b.t - a.t);
+      sig = dirs.length ? dirs[0].d : null;
+    } catch { sig = null; }
+  }
+  return sig ? { runtime, sig, socket: path.join(base, sig, '.socket2.sock') } : null;
+}
+const HYPR = hyprInstance();
+
 function hyprctl(args) {
   return new Promise((resolve) => {
-    execFile('hyprctl', [...args, '-j'], { timeout: 3000 }, (err, stdout) => {
+    if (!HYPR) { resolve(null); return; }
+    const env = { ...process.env, XDG_RUNTIME_DIR: HYPR.runtime, HYPRLAND_INSTANCE_SIGNATURE: HYPR.sig };
+    execFile('hyprctl', [...args, '-j'], { timeout: 3000, env }, (err, stdout) => {
       if (err) { resolve(null); return; }
       try { resolve(JSON.parse(stdout)); } catch { resolve(null); }
     });
@@ -114,10 +136,8 @@ ipcMain.handle('windows', async () => {
 });
 
 function watchHyprland() {
-  const sig = process.env.HYPRLAND_INSTANCE_SIGNATURE;
-  const runtime = process.env.XDG_RUNTIME_DIR;
-  if (!sig || !runtime) { return; }
-  const sock = path.join(runtime, 'hypr', sig, '.socket2.sock');
+  if (!HYPR) { console.error('no Hyprland instance found; per-app switching is off'); return; }
+  const sock = HYPR.socket;
   let buffer = '';
   const connect = () => {
     const client = net.createConnection(sock);
