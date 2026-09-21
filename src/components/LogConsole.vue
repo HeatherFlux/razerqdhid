@@ -37,18 +37,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <ul class="console bg-base-200" ref="consoleRef">
+  <ul class="console bg-base-200 font-mono text-xs" ref="consoleRef">
     <li v-for="(item, index) in messages" :key="index">{{ item[0].toTimeString().split(' ')[0] }} {{ item[1] }}</li>
   </ul>
 </template>
 
 <style lang="scss" scoped>
 .console {
-  height: 10em;
-  padding: 1em;
-  width: calc(100% - 4em);
+  height: 14em;
+  padding: 0.75em 1em;
+  width: 100%;
   box-sizing: border-box;
   overflow-y: auto;
   white-space: pre-wrap;
+  border-top: 1px solid oklch(var(--b3));
 }
 </style>

@@ -11,6 +11,8 @@ const props = defineProps<{
   hard?: boolean; // should it interact with hardware or just dummy
   activeProfile: string;
   buttonsLayout?: (string | null)[];
+  profileSlots?: number;
+  unsupported?: string[];
 }>();
 
 const bridgeData = defineModel<BridgeData>('bridgeData', {default: {}});
@@ -26,7 +28,8 @@ const defaultButtonsLayout = [
 ];
 // Grid cells; null = empty cell. Only real buttons get a bridge.
 const buttonsGrid: (string | null)[] = props.buttonsLayout ?? defaultButtonsLayout;
-const buttonsLayout: string[] = buttonsGrid.filter((b): b is string => b !== null);
+// Pyodide hands Python None over as undefined, so test loosely.
+const buttonsLayout: string[] = buttonsGrid.filter((b): b is string => b != null);
 
 const selectedButton = ref(buttonsLayout.includes('left') ? 'left' : buttonsLayout[0]);
 const selectedHypershift = ref(false);
@@ -131,7 +134,8 @@ f(profile, button, hypershift, value)
 const functionCategoryList = [
   'disabled', 'mouse', 'keyboard', 'macro', 'dpi_switch', 'profile_switch',
   'system', 'consumer', 'hypershift_toggle', 'scroll_mode_toggle', 'custom',
-];
+].filter((c) => !(c === 'macro' && props.unsupported?.includes('macros'))
+             && !(c === 'scroll_mode_toggle' && props.unsupported?.includes('scroll_mode')));
 
 const selectedButtonFunction = computed({
   get: () => {
@@ -205,324 +209,291 @@ function parseIntDefault(s: string, defaultValue: number) {
   return isNaN(num) ? defaultValue : num;
 }
 
+
+// ---- display helpers ----
+const categoryLabels: {[key: string]: string} = {
+  disabled: 'Disabled', mouse: 'Mouse', keyboard: 'Keyboard', macro: 'Macro', dpi_switch: 'DPI',
+  profile_switch: 'Profile', system: 'System', consumer: 'Media', hypershift_toggle: 'Hypershift',
+  scroll_mode_toggle: 'Wheel mode', custom: 'Custom',
+};
+const categoryLabel = (c: string) => categoryLabels[c] ?? c;
+const prettyName = (b: string) => b.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()).replace(/\bdpi\b/i, 'DPI');
+const onboardProfiles = ['white', 'red', 'green', 'blue', 'cyan'].slice(0, props.profileSlots ?? 5);
+function keyLabel(code: number): string {
+  const raw = (hidKeyboardCode as {[key: number]: string})[code];
+  if (!raw) { return '0x' + code.toString(16); }
+  let name = raw.replace(/^Keyboard /, '').replace(/^Keypad /, 'KP ');
+  const pair = name.match(/^(\S+) and (\S+)$/);
+  if (pair) { name = /^[a-z]$/.test(pair[1]) ? pair[2] : pair[1]; }
+  return name;
+}
+const modShort: {[key: string]: string} = {
+  left_control: 'Ctrl', left_shift: 'Shift', left_alt: 'Alt', left_gui: 'Super',
+  right_control: 'RCtrl', right_shift: 'RShift', right_alt: 'RAlt', right_gui: 'RSuper',
+};
+function summary(fn: any): string {
+  if (!fn) { return ''; }
+  const [cat, m] = fn;
+  switch (cat) {
+    case 'disabled': return 'off';
+    case 'mouse': return prettyName(m.fn ?? '') + (m.double_click ? ' x2' : m.turbo != null ? ' turbo' : '');
+    case 'keyboard': return [...(m.modifier ?? []).map((x: string) => modShort[x] ?? x), keyLabel(m.key ?? 0)].join('+') + (m.turbo != null ? ' turbo' : '');
+    case 'macro': return 'macro 0x' + (m.macro_id ?? 0).toString(16).padStart(4, '0');
+    case 'dpi_switch': return 'DPI ' + (m.fn ?? '').replace(/_/g, ' ');
+    case 'profile_switch': return 'profile ' + (m.fn === 'fixed' ? m.profile : (m.fn ?? '').replace(/_/g, ' '));
+    case 'system': return (m.fn ?? []).join(', ').replace(/_/g, ' ');
+    case 'consumer': return (hidConsumerCode as {[key: number]: string})[m.fn] ?? ('media 0x' + (m.fn ?? 0).toString(16));
+    case 'hypershift_toggle': return 'Hypershift';
+    case 'scroll_mode_toggle': return 'wheel mode';
+    default: return cat;
+  }
+}
 </script>
 <template>
-  <div class="form-control">
-    <h2>Button</h2>
-    <div class="flex flex-row items-baseline">
-      <div class="grid grid-cols-4">
-        <template v-for="(b, i) in buttonsGrid" :key="i">
-          <button v-if="b !== null" class="btn text-xs flex flex-col"
-            :class="{'btn-active': selectedButton === b, 'btn-warning': selectedHypershift}"
-            @click="selectedButton = b">
-            <span>{{ b }}</span>
-            <span class="opacity-40">{{ buttonFunctionMap[b + (selectedHypershift ? '_hypershift' : '')].value[0] }}</span>
-          </button>
-          <div v-else></div>
-        </template>
+  <div class="flex flex-col gap-4">
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-5">
+        <div class="flex items-center justify-between">
+          <h2 class="mb-0">Buttons</h2>
+          <label class="label cursor-pointer gap-2 py-0">
+            <span class="label-text text-sm">Hypershift layer</span>
+            <input type="checkbox" class="toggle toggle-sm toggle-warning" v-model="selectedHypershift"/>
+          </label>
+        </div>
+        <div class="grid grid-cols-4 gap-2 mt-3">
+          <template v-for="(b, i) in buttonsGrid" :key="i">
+            <button v-if="b != null"
+              class="btn btn-sm h-auto min-h-0 py-2 px-3 flex flex-col items-start gap-0 text-left normal-case"
+              :class="selectedButton === b ? (selectedHypershift ? 'btn-warning' : 'btn-primary') : 'btn-ghost bg-base-200'"
+              @click="selectedButton = b">
+              <span class="text-xs font-semibold leading-tight">{{ prettyName(b) }}</span>
+              <span class="text-[11px] font-normal opacity-70 leading-tight truncate w-full">{{ summary(buttonFunctionMap[b + (selectedHypershift ? '_hypershift' : '')].value) }}</span>
+            </button>
+            <div v-else></div>
+          </template>
+        </div>
+        <p class="text-xs opacity-60 mt-3">Each button has one function normally and another while Hypershift is held. Bind a button to Hypershift to make it the shift key.</p>
       </div>
     </div>
-    <div class="flex flex-row gap-4 place-items-center">
-      <span>When Hypershift on</span>
-      <label class="label cursor-pointer space-x-4">
-        <input type="checkbox" class="toggle toggle-sm" v-model="selectedHypershift"/>
-      </label>
-    </div>
-    <div>Each button can be assigned a function when Hypershift is off, another function when Hypershift is on.</div>
-    <div>Assign a button to "hypershift_toggle" to let it switch Hypershift status.</div>
-    <h2>Function</h2>
-    <div class="grid grid-cols-4 items-baseline mb-4">
-      <button class="btn btn-sm"
-        v-for="b in functionCategoryList"
-        :class="{'btn-active': selectedButtonFunction[0] === b}"
-        @click="resetFunctionCategory(b)"
-        >{{ b }}</button>
-    </div>
-    <div v-if="selectedButtonFunction[0] == 'disabled'">
-      <span>Disabled</span>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'mouse'">
-      <div class="flex flex-row gap-4 place-items-center">
-        <span>Mouse button function</span>
-        <select class="select select-bordered w-full max-w-xs" v-model="selectedButtonFunction[1].fn">
-          <option v-for="fn in fnMouse" :value="fn">{{ fn }}</option>
-        </select>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].turbo == null && !selectedButtonFunction[1].double_click"
-            @change="selectedButtonFunction[1].turbo = null; selectedButtonFunction[1].double_click = false;" />
-          <span>Single Click</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].double_click"
-            @change="selectedButtonFunction[1].turbo = null; selectedButtonFunction[1].double_click = true;" />
-          <span>Double Click</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].turbo != null"
-            @change="selectedButtonFunction[1].turbo = 200; selectedButtonFunction[1].double_click = false;" />
-          <span>Turbo</span>
-        </label>
-        <span>Trigger every</span>
-        <input type="number" min="1" max="65535" class="input input-sm input-bordered w-24"
-          :disabled="selectedButtonFunction[1].turbo == null"
-          :value="selectedButtonFunction[1].turbo ?? 0"
-          @change="(event) => {selectedButtonFunction[1].turbo = parseIntDefault(event.target?.value, 200)}"/>
-        <span>ms</span>
-        <span>({{
-          isFinite(1000 / selectedButtonFunction[1].turbo)
-          ? (1000 / selectedButtonFunction[1].turbo).toFixed(1)
-          : '-'
-        }} times / s)</span>
-      </div>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'keyboard'">
-      <div class="flex flex-row gap-4 place-items-center">
-        <span>Key: </span>
-        <input type="number" min="0" max="255" class="input input-sm input-bordered w-24"
-          :value="selectedButtonFunction[1].key ?? 0"
-          @change="(event) => {selectedButtonFunction[1].key = parseIntDefault(event.target?.value, 0x04)}"/>
-        <select class="select select-bordered w-full max-w-xs" v-model="selectedButtonFunction[1].key">
-          <option v-for="[code, name] in Object.entries(hidKeyboardCode)" :value="parseInt(code)">{{ code }} {{ name }}</option>
-        </select>
-      </div>
-      <span>Modifiers: </span>
-      <div class="grid grid-cols-4 gap-2 place-items-center">
-        <label class="label cursor-pointer space-x-4" v-for="m in fnKeyboardModifier">
-          <input type="checkbox" class="checkbox checkbox-sm"
-            :checked="selectedButtonFunction[1].modifier.includes(m)"
-            @change="toggleKeyboardModifier(m)" />
-          <span>{{ m }}</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="checkbox" class="checkbox checkbox-sm"
-            :checked="selectedButtonFunction[1].turbo != null"
-            @change="(event) => selectedButtonFunction[1].turbo = event.target?.checked ? 200 : null" />
-          <span>Turbo</span>
-        </label>
-        <span>Trigger every</span>
-        <input type="number" min="1" max="65535" class="input input-sm input-bordered w-24"
-          :disabled="selectedButtonFunction[1].turbo == null"
-          :value="selectedButtonFunction[1].turbo ?? 0"
-          @change="(event) => {selectedButtonFunction[1].turbo = parseIntDefault(event.target?.value, 200)}"/>
-        <span>ms</span>
-        <span>({{
-          isFinite(1000 / selectedButtonFunction[1].turbo)
-          ? (1000 / selectedButtonFunction[1].turbo).toFixed(1)
-          : '-'
-        }} times / s)</span>
-      </div>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'macro'">
-      <div>For macro to work, the Macro ID muse be present. You can assign and edit macros in the "Macro" menu.</div>
-      <div class="h-2"></div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <span>Macro ID</span>
-        <input class="input input-sm input-bordered"
-          :value="'0x' + (selectedButtonFunction[1].macro_id ?? 0).toString(16).padStart(4, '0')"
-          @change="(event) => selectedButtonFunction[1].macro_id = parseIntDefault(event.target?.value, 0)"/>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].mode === 'macro_fixed'"
-            @change="selectedButtonFunction[1].mode = 'macro_fixed'" />
-          <span>Repeat for</span>
-        </label>
-        <input class="input input-sm input-bordered w-20"
-          :value="selectedButtonFunction[1].times.toString()"
-          @change="(event) => selectedButtonFunction[1].times = parseIntDefault(event.target?.value, 1)"/>
-          <span>times</span>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].mode === 'macro_hold'"
-            @change="selectedButtonFunction[1].mode = 'macro_hold'" />
-          <span>Hold</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].mode === 'macro_toggle'"
-            @change="selectedButtonFunction[1].mode = 'macro_toggle'" />
-          <span>Toggle</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].mode === 'macro_sequence'"
-            @change="selectedButtonFunction[1].mode = 'macro_sequence'" />
-          <span>Sequence</span>
-        </label>
-      </div>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'dpi_switch'">
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'next'"
-            @change="selectedButtonFunction[1].fn = 'next'" />
-          <span>Next</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'prev'"
-            @change="selectedButtonFunction[1].fn = 'prev'" />
-          <span>Previous</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'next_loop'"
-            @change="selectedButtonFunction[1].fn = 'next_loop'" />
-          <span>Next (Loop)</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'prev_loop'"
-            @change="selectedButtonFunction[1].fn = 'prev_loop'" />
-          <span>Previous (Loop)</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'fixed'"
-            @change="selectedButtonFunction[1].fn = 'fixed'; selectedButtonFunction[1].stage = selectedButtonFunction[1].stage ?? 1" />
-          <span>Set dpi to stage </span>
-        </label>
-        <input type="number" min="1" max="5" step="1" class="input input-sm input-bordered w-20"
-          :disabled="selectedButtonFunction[1].fn !== 'fixed'"
-          :value="(selectedButtonFunction[1].stage ?? 1).toString()"
-          @change="(event) => selectedButtonFunction[1].stage = parseIntDefault(event.target?.value, 1)"/>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'aim'"
-            @change="selectedButtonFunction[1].fn = 'aim'; selectedButtonFunction[1].dpi = selectedButtonFunction[1].dpi ?? [800, 800]" />
-          <span>Set dpi to </span>
-        </label>
-        <span>X:</span>
-        <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered w-20"
-          :disabled="selectedButtonFunction[1].fn !== 'aim'"
-          :value="(selectedButtonFunction[1].dpi?.[0] ?? 800).toString()"
-          @change="(event) => selectedButtonFunction[1].dpi[0] = parseIntDefault(event.target?.value, 800)"/>
-        <span>Y:</span>
-        <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered w-20"
-          :disabled="selectedButtonFunction[1].fn !== 'aim'"
-          :value="(selectedButtonFunction[1].dpi?.[1] ?? 800).toString()"
-          @change="(event) => selectedButtonFunction[1].dpi[1] = parseIntDefault(event.target?.value, 800)"/>
-      </div>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'profile_switch'">
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'next'"
-            @change="selectedButtonFunction[1].fn = 'next'" />
-          <span>Next</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'prev'"
-            @change="selectedButtonFunction[1].fn = 'prev'" />
-          <span>Previous</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'next_loop'"
-            @change="selectedButtonFunction[1].fn = 'next_loop'" />
-          <span>Next (Loop)</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'prev_loop'"
-            @change="selectedButtonFunction[1].fn = 'prev_loop'" />
-          <span>Previous (Loop)</span>
-        </label>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <label class="label cursor-pointer space-x-4">
-          <input type="radio" class="radio radio-sm"
-            :checked="selectedButtonFunction[1].fn === 'fixed'"
-            @change="selectedButtonFunction[1].fn = 'fixed'; selectedButtonFunction[1].profile = selectedButtonFunction[1].profile ?? 'white'" />
-          <span>Switch to profile </span>
-        </label>
-        <select class="select select-bordered w-full max-w-xs"
-          :disabled="selectedButtonFunction[1].fn !== 'fixed'"
-          v-model="selectedButtonFunction[1].profile">
-          <option v-for="profile in ['white', 'red', 'green', 'blue', 'cyan']" :value="profile">{{ profile }}</option>
-        </select>
-      </div>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'system'">
-      <div class="grid grid-cols-4 gap-2 place-items-center">
-        <label class="label cursor-pointer space-x-4" v-for="m in ['power_down', 'sleep', 'wake_up']">
-          <input type="checkbox" class="checkbox checkbox-sm"
-            :checked="selectedButtonFunction[1].fn.includes(m)"
-            @change="toggleSystemFn(m)" />
-          <span>{{ m }}</span>
-        </label>
-      </div>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'consumer'">
-      <div class="flex flex-row gap-4 place-items-center">
-        <span>Function: </span>
-        <input type="number" min="0" max="65535" class="input input-sm input-bordered w-24"
-          :value="selectedButtonFunction[1].fn ?? 0"
-          @change="(event) => {selectedButtonFunction[1].fn = parseIntDefault(event.target?.value, 0xb0)}"/>
-        <select class="select select-bordered w-full max-w-xs" v-model="selectedButtonFunction[1].fn">
-          <option v-for="[code, name] in Object.entries(hidConsumerCode)" :value="parseInt(code)">{{ code }} {{ name }}</option>
-        </select>
-      </div>
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'hypershift_toggle'">
-      Holding this button enables hypershift
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'scroll_mode_toggle'">
-      Pushing this button changes wheel mode
-    </div>
-    <div v-else-if="selectedButtonFunction[0] == 'custom'">
-      Here you can set custom values. It is mostly useless.
-      <div class="flex flex-row gap-4 place-items-center">
-        <span>class: </span>
-        <input type="number" min="0" max="255" class="input input-sm input-bordered w-24"
-          :value="selectedButtonFunction[1].fn_class ?? 0"
-          @change="(event) => {selectedButtonFunction[1].fn_class = parseIntDefault(event.target?.value, 0)}"/>
-      </div>
-      <div class="flex flex-row gap-4 place-items-center">
-        <span>value: </span>
-        <input type="text" class="input input-sm input-bordered"
-          :value="toHexString(selectedButtonFunction[1].fn_value)"
-          @change="(event) => {selectedButtonFunction[1].fn_value = fromHexString(event.target?.value)}"/>
+
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-5 gap-4">
+        <div class="flex items-center gap-2">
+          <h2 class="mb-0">{{ prettyName(selectedButton) }}</h2>
+          <span v-if="selectedHypershift" class="badge badge-warning badge-sm">hypershift</span>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <button class="btn btn-xs normal-case"
+            v-for="b in functionCategoryList" :key="b"
+            :class="selectedButtonFunction[0] === b ? 'btn-primary' : 'btn-ghost bg-base-200'"
+            @click="resetFunctionCategory(b)">{{ categoryLabel(b) }}</button>
+        </div>
+
+        <div v-if="selectedButtonFunction[0] == 'disabled'" class="text-sm opacity-60">
+          This button does nothing.
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'mouse'" class="flex flex-col gap-3">
+          <label class="flex items-center gap-3 text-sm">
+            <span class="w-28">Click</span>
+            <select class="select select-bordered select-sm w-48 capitalize" v-model="selectedButtonFunction[1].fn">
+              <option v-for="fn in fnMouse" :value="fn">{{ prettyName(fn) }}</option>
+            </select>
+          </label>
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" class="radio radio-sm"
+                :checked="selectedButtonFunction[1].turbo == null && !selectedButtonFunction[1].double_click"
+                @change="selectedButtonFunction[1].turbo = null; selectedButtonFunction[1].double_click = false;" />
+              <span>Single click</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" class="radio radio-sm"
+                :checked="selectedButtonFunction[1].double_click"
+                @change="selectedButtonFunction[1].turbo = null; selectedButtonFunction[1].double_click = true;" />
+              <span>Double click</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" class="radio radio-sm"
+                :checked="selectedButtonFunction[1].turbo != null"
+                @change="selectedButtonFunction[1].turbo = 200; selectedButtonFunction[1].double_click = false;" />
+              <span>Turbo</span>
+            </label>
+            <span class="flex items-center gap-2">
+              every
+              <input type="number" min="1" max="65535" class="input input-sm input-bordered w-20"
+                :disabled="selectedButtonFunction[1].turbo == null"
+                :value="selectedButtonFunction[1].turbo ?? 0"
+                @change="(event) => {selectedButtonFunction[1].turbo = parseIntDefault((event.target as HTMLInputElement).value, 200)}"/>
+              ms
+              <span class="opacity-60">({{ isFinite(1000 / selectedButtonFunction[1].turbo) ? (1000 / selectedButtonFunction[1].turbo).toFixed(1) : '-' }}/s)</span>
+            </span>
+          </div>
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'keyboard'" class="flex flex-col gap-3">
+          <label class="flex items-center gap-3 text-sm">
+            <span class="w-28">Key</span>
+            <select class="select select-bordered select-sm w-64" v-model="selectedButtonFunction[1].key">
+              <option v-for="[code, name] in Object.entries(hidKeyboardCode)" :value="parseInt(code)">{{ keyLabel(parseInt(code)) }} <span class="opacity-50">({{ name }})</span></option>
+            </select>
+            <span class="opacity-60">code</span>
+            <input type="number" min="0" max="255" class="input input-sm input-bordered w-20"
+              :value="selectedButtonFunction[1].key ?? 0"
+              @change="(event) => {selectedButtonFunction[1].key = parseIntDefault((event.target as HTMLInputElement).value, 0x04)}"/>
+          </label>
+          <div class="flex items-start gap-3 text-sm">
+            <span class="w-28 pt-1">Modifiers</span>
+            <div class="grid grid-cols-4 gap-x-4 gap-y-1">
+              <label class="flex items-center gap-2 cursor-pointer" v-for="m in fnKeyboardModifier" :key="m">
+                <input type="checkbox" class="checkbox checkbox-sm"
+                  :checked="selectedButtonFunction[1].modifier.includes(m)"
+                  @change="toggleKeyboardModifier(m)" />
+                <span>{{ modShort[m] }}</span>
+              </label>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span class="w-28">Repeat</span>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" class="checkbox checkbox-sm"
+                :checked="selectedButtonFunction[1].turbo != null"
+                @change="(event) => selectedButtonFunction[1].turbo = (event.target as HTMLInputElement).checked ? 200 : null" />
+              <span>Turbo while held</span>
+            </label>
+            <span class="flex items-center gap-2">
+              every
+              <input type="number" min="1" max="65535" class="input input-sm input-bordered w-20"
+                :disabled="selectedButtonFunction[1].turbo == null"
+                :value="selectedButtonFunction[1].turbo ?? 0"
+                @change="(event) => {selectedButtonFunction[1].turbo = parseIntDefault((event.target as HTMLInputElement).value, 200)}"/>
+              ms
+            </span>
+          </div>
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'macro'" class="flex flex-col gap-3 text-sm">
+          <p class="opacity-70">The macro must exist first. Create and edit macros in the Macros tab.</p>
+          <label class="flex items-center gap-3">
+            <span class="w-28">Macro ID</span>
+            <input class="input input-sm input-bordered w-32 font-mono"
+              :value="'0x' + (selectedButtonFunction[1].macro_id ?? 0).toString(16).padStart(4, '0')"
+              @change="(event) => selectedButtonFunction[1].macro_id = parseIntDefault((event.target as HTMLInputElement).value, 0)"/>
+          </label>
+          <div class="flex items-start gap-3">
+            <span class="w-28 pt-1">Mode</span>
+            <div class="flex flex-col gap-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].mode === 'macro_fixed'" @change="selectedButtonFunction[1].mode = 'macro_fixed'" />
+                <span>Play</span>
+                <input class="input input-sm input-bordered w-16" :value="selectedButtonFunction[1].times.toString()" @change="(event) => selectedButtonFunction[1].times = parseIntDefault((event.target as HTMLInputElement).value, 1)"/>
+                <span>times</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].mode === 'macro_hold'" @change="selectedButtonFunction[1].mode = 'macro_hold'" />
+                <span>Repeat while held</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].mode === 'macro_toggle'" @change="selectedButtonFunction[1].mode = 'macro_toggle'" />
+                <span>Toggle on and off</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].mode === 'macro_sequence'" @change="selectedButtonFunction[1].mode = 'macro_sequence'" />
+                <span>Sequence</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'dpi_switch'" class="flex flex-col gap-2 text-sm">
+          <label class="flex items-center gap-2 cursor-pointer" v-for="[v, l] in [['next', 'Next stage'], ['prev', 'Previous stage'], ['next_loop', 'Next stage, looping'], ['prev_loop', 'Previous stage, looping']]" :key="v">
+            <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].fn === v" @change="selectedButtonFunction[1].fn = v" />
+            <span>{{ l }}</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].fn === 'fixed'"
+              @change="selectedButtonFunction[1].fn = 'fixed'; selectedButtonFunction[1].stage = selectedButtonFunction[1].stage ?? 1" />
+            <span>Jump to stage</span>
+            <input type="number" min="1" max="5" step="1" class="input input-sm input-bordered w-16"
+              :disabled="selectedButtonFunction[1].fn !== 'fixed'"
+              :value="(selectedButtonFunction[1].stage ?? 1).toString()"
+              @change="(event) => selectedButtonFunction[1].stage = parseIntDefault((event.target as HTMLInputElement).value, 1)"/>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].fn === 'aim'"
+              @change="selectedButtonFunction[1].fn = 'aim'; selectedButtonFunction[1].dpi = selectedButtonFunction[1].dpi ?? [800, 800]" />
+            <span>Hold for DPI</span>
+            <span>X</span>
+            <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered w-24"
+              :disabled="selectedButtonFunction[1].fn !== 'aim'"
+              :value="(selectedButtonFunction[1].dpi?.[0] ?? 800).toString()"
+              @change="(event) => selectedButtonFunction[1].dpi[0] = parseIntDefault((event.target as HTMLInputElement).value, 800)"/>
+            <span>Y</span>
+            <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered w-24"
+              :disabled="selectedButtonFunction[1].fn !== 'aim'"
+              :value="(selectedButtonFunction[1].dpi?.[1] ?? 800).toString()"
+              @change="(event) => selectedButtonFunction[1].dpi[1] = parseIntDefault((event.target as HTMLInputElement).value, 800)"/>
+          </label>
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'profile_switch'" class="flex flex-col gap-2 text-sm">
+          <label class="flex items-center gap-2 cursor-pointer" v-for="[v, l] in [['next', 'Next profile'], ['prev', 'Previous profile'], ['next_loop', 'Next profile, looping'], ['prev_loop', 'Previous profile, looping']]" :key="v">
+            <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].fn === v" @change="selectedButtonFunction[1].fn = v" />
+            <span>{{ l }}</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" class="radio radio-sm" :checked="selectedButtonFunction[1].fn === 'fixed'"
+              @change="selectedButtonFunction[1].fn = 'fixed'; selectedButtonFunction[1].profile = selectedButtonFunction[1].profile ?? 'white'" />
+            <span>Switch to</span>
+            <select class="select select-bordered select-sm w-32 capitalize"
+              :disabled="selectedButtonFunction[1].fn !== 'fixed'"
+              v-model="selectedButtonFunction[1].profile">
+              <option v-for="profile in onboardProfiles" :value="profile">{{ profile }}</option>
+            </select>
+          </label>
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'system'" class="flex flex-wrap gap-4 text-sm">
+          <label class="flex items-center gap-2 cursor-pointer" v-for="m in ['power_down', 'sleep', 'wake_up']" :key="m">
+            <input type="checkbox" class="checkbox checkbox-sm" :checked="selectedButtonFunction[1].fn.includes(m)" @change="toggleSystemFn(m)" />
+            <span>{{ prettyName(m) }}</span>
+          </label>
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'consumer'" class="flex items-center gap-3 text-sm">
+          <span class="w-28">Media key</span>
+          <select class="select select-bordered select-sm w-64" v-model="selectedButtonFunction[1].fn">
+            <option v-for="[code, name] in Object.entries(hidConsumerCode)" :value="parseInt(code)">{{ name }}</option>
+          </select>
+          <span class="opacity-60">code</span>
+          <input type="number" min="0" max="65535" class="input input-sm input-bordered w-24"
+            :value="selectedButtonFunction[1].fn ?? 0"
+            @change="(event) => {selectedButtonFunction[1].fn = parseIntDefault((event.target as HTMLInputElement).value, 0xb0)}"/>
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'hypershift_toggle'" class="text-sm opacity-70">
+          Holding this button enables the Hypershift layer.
+        </div>
+        <div v-else-if="selectedButtonFunction[0] == 'scroll_mode_toggle'" class="text-sm opacity-70">
+          Pressing this button switches the wheel between tactile and freespin.
+        </div>
+
+        <div v-else-if="selectedButtonFunction[0] == 'custom'" class="flex flex-col gap-2 text-sm">
+          <p class="opacity-70">Raw function bytes. Rarely useful.</p>
+          <label class="flex items-center gap-3">
+            <span class="w-28">Class</span>
+            <input type="number" min="0" max="255" class="input input-sm input-bordered w-24"
+              :value="selectedButtonFunction[1].fn_class ?? 0"
+              @change="(event) => {selectedButtonFunction[1].fn_class = parseIntDefault((event.target as HTMLInputElement).value, 0)}"/>
+          </label>
+          <label class="flex items-center gap-3">
+            <span class="w-28">Value</span>
+            <input type="text" class="input input-sm input-bordered font-mono w-64"
+              :value="toHexString(selectedButtonFunction[1].fn_value)"
+              @change="(event) => {selectedButtonFunction[1].fn_value = fromHexString((event.target as HTMLInputElement).value)}"/>
+          </label>
+        </div>
       </div>
     </div>
   </div>
 </template>
-<style lang="scss" scoped>
-</style>

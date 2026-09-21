@@ -31,3 +31,5 @@ public/pyodide
 *.njsproj
 *.sln
 *.sw?
+dist-desktop
+electron/icon.png

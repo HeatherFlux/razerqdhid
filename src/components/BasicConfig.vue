@@ -76,59 +76,71 @@ function dpiCopyXY() {
 
 </script>
 <template>
-  <div class="form-control">
-    <template v-if="has('scroll_mode') || has('scroll_acceleration') || has('scroll_smart_reel')">
-    <h2>Scroll</h2>
-    <div class="grid grid-cols-2 place-items-baseline">
-      <template v-if="has('scroll_mode')">
-      <span>Wheel mode</span>
-      <label class="label cursor-pointer space-x-4">
-        <span class="label-text">Tactile</span>
-        <input type="checkbox" class="toggle toggle-sm" v-model="scrollModeToggle"/>
-        <span class="label-text">Freespin</span>
-      </label>
-      </template>
-      <template v-if="has('scroll_acceleration')">
-      <span>Acceleration</span>
-      <label class="label cursor-pointer space-x-4">
-        <input type="checkbox" class="toggle toggle-sm" v-model="scrollAcceleration"/>
-      </label>
-      </template>
-      <template v-if="has('scroll_smart_reel')">
-      <span>Smart Reel</span>
-      <label class="label cursor-pointer space-x-4">
-        <input type="checkbox" class="toggle toggle-sm" v-model="scrollSmartReel"/>
-      </label>
-      </template>
-    </div>
-    </template>
-    <h2>Polling rate</h2>
-    <div class="flex flex-row gap-4">
-      <div>Report every <input type="number" min="1" max="255" class="input input-sm input-bordered w-16" v-model.lazy="pollingRateInput"/> ms</div>
-      <div class="flex-1">
-        <input type="range" min="0" max="4" value="0" class="range" step="1" v-model.lazy="pollingRateRange" />
-        <div class="input-label">
-          <span>63</span><span>125</span><span>250</span><span>500</span><span>1000</span>
+  <div class="flex flex-col gap-4">
+    <div class="card bg-base-100 shadow-sm" v-if="has('scroll_mode') || has('scroll_acceleration') || has('scroll_smart_reel')">
+      <div class="card-body p-5">
+        <h2>Scroll wheel</h2>
+        <div class="grid grid-cols-[10rem_auto] items-center gap-y-2">
+          <template v-if="has('scroll_mode')">
+            <span class="text-sm">Wheel mode</span>
+            <label class="label cursor-pointer justify-start gap-3 py-0">
+              <span class="label-text">Tactile</span>
+              <input type="checkbox" class="toggle toggle-sm" v-model="scrollModeToggle"/>
+              <span class="label-text">Freespin</span>
+            </label>
+          </template>
+          <template v-if="has('scroll_acceleration')">
+            <span class="text-sm">Acceleration</span>
+            <label class="label cursor-pointer justify-start py-0">
+              <input type="checkbox" class="toggle toggle-sm" v-model="scrollAcceleration"/>
+            </label>
+          </template>
+          <template v-if="has('scroll_smart_reel')">
+            <span class="text-sm">Smart Reel</span>
+            <label class="label cursor-pointer justify-start py-0">
+              <input type="checkbox" class="toggle toggle-sm" v-model="scrollSmartReel"/>
+            </label>
+          </template>
         </div>
       </div>
-      <span class="w-12">{{ (1000 / (pollingRate ?? 1)).toFixed(0) }} Hz</span>
     </div>
-    <h2>DPI</h2>
-    <div class="grid grid-rows-2 grid-flow-col place-items-baseline justify-start">
-      <span class="mx-2">X:</span>
-      <span class="mx-2">Y:</span>
-      <template v-for="(xy, index) in dpiStages[0]" :key="index">
-        <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered rounded-none min-w-16" :class="{'input-primary': index + 1 == dpiStages[1]}" v-model.lazy="xy[0]"/>
-        <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered rounded-none min-w-16" :class="{'input-primary': index + 1 == dpiStages[1]}" v-model.lazy="xy[1]"/>
-      </template>
-      <span></span>
-      <span><button class="btn btn-sm" @click="dpiCopyXY">Y=X</button></span>
+
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-5">
+        <h2>Polling rate</h2>
+        <div class="flex items-center gap-4">
+          <div class="text-sm whitespace-nowrap">Report every <input type="number" min="1" max="255" class="input input-sm input-bordered w-16 mx-1" v-model.lazy="pollingRateInput"/> ms</div>
+          <div class="flex-1">
+            <input type="range" min="0" max="4" value="0" class="range range-sm" step="1" v-model.lazy="pollingRateRange" />
+            <div class="input-label">
+              <span>63</span><span>125</span><span>250</span><span>500</span><span>1000</span>
+            </div>
+          </div>
+          <span class="w-16 text-right font-mono text-sm">{{ (1000 / (pollingRate ?? 1)).toFixed(0) }} Hz</span>
+        </div>
+      </div>
     </div>
-    <div class="my-2 flex gap-2 place-items-baseline">
-      <span class="flex-shrink-0">Stages: </span><input type="number" min="1" max="5" step="1" class="input input-sm input-bordered w-16" v-model.lazy="dpiStageCount"/>
-      <span class="flex-shrink-0">Active: </span><input type="number" min="1" max="5" step="1" class="input input-sm input-bordered w-16" v-model.lazy="dpiStages[1]"/>
-      <span class="flex-shrink-0">Current X:</span><input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered rounded-none min-w-16" v-model.lazy.number="dpiXy[0]"/>
-      <span class="flex-shrink-0">Y:</span><input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered rounded-none min-w-16" v-model.lazy.number="dpiXy[1]"/>
+
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-5">
+        <h2>DPI</h2>
+        <div class="grid grid-rows-2 grid-flow-col place-items-baseline justify-start gap-x-1">
+          <span class="mr-2 text-sm">X</span>
+          <span class="mr-2 text-sm">Y</span>
+          <template v-for="(xy, index) in dpiStages[0]" :key="index">
+            <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered min-w-20" :class="{'input-primary': index + 1 == dpiStages[1]}" v-model.lazy="xy[0]"/>
+            <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered min-w-20" :class="{'input-primary': index + 1 == dpiStages[1]}" v-model.lazy="xy[1]"/>
+          </template>
+          <span></span>
+          <span><button class="btn btn-sm btn-ghost" @click="dpiCopyXY">Y = X</button></span>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2 items-baseline text-sm">
+          <label class="flex items-center gap-2">Stages <input type="number" min="1" max="5" step="1" class="input input-sm input-bordered w-16" v-model.lazy="dpiStageCount"/></label>
+          <label class="flex items-center gap-2">Active <input type="number" min="1" max="5" step="1" class="input input-sm input-bordered w-16" v-model.lazy="dpiStages[1]"/></label>
+          <label class="flex items-center gap-2">Current X <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered w-24" v-model.lazy.number="dpiXy[0]"/></label>
+          <label class="flex items-center gap-2">Y <input type="number" min="100" max="25600" step="100" class="input input-sm input-bordered w-24" v-model.lazy.number="dpiXy[1]"/></label>
+        </div>
+      </div>
     </div>
   </div>
 </template>

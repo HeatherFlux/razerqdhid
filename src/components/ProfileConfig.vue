@@ -8,6 +8,7 @@ const props = defineProps<{
   py: RunPython;
   hard?: Boolean;
   isConfigAllIdle: boolean;
+  profileSlots?: number; // onboard slots this model has (Basilisk V3: 5, Naga V2 HyperSpeed: 1)
 }>();
 
 const profileConfigData = defineModel<any>('profileConfigData');
@@ -16,6 +17,7 @@ const enableAllConfigSections = defineModel<boolean>('enableAllConfigSections');
 const profileTextData = ref();
 
 const allProfileList = ['direct', 'white', 'red', 'green', 'blue', 'cyan'];
+const onboardSlots = allProfileList.slice(1, 1 + (props.profileSlots ?? 5));
 const profileList = ref<string[]>([]);
 const confirmDelete = ref<{ [key: string]: boolean }>(
   allProfileList.reduce((acc:{ [key: string]: boolean },curr)=> (acc[curr]=false,acc),{}));
@@ -66,39 +68,35 @@ async function importConfig() {
 
 </script>
 <template>
-  <div class="form-control">
-    <h2>Profile</h2>
-    <div>Create and delete profiles:</div>
-    <div class="h-2"></div>
-    <div class="grid grid-rows-2 grid-flow-col" v-if="hard">
-      <template v-for="p in allProfileList">
-        <span class="inline-flex justify-center items-center" :class="{'bg-info text-info-content': profileList.includes(p), 'opacity-40': !profileList.includes(p)}">
-          <span>{{ p }}</span>
-        </span>
-        <button class="btn btn-sm min-w-24 btn-success join-item"
-          v-if="p != 'direct' && !profileList.includes(p)"
-          @click="newProfile(p)">New</button>
-        <button class="btn btn-sm min-w-24 btn-error join-item"
-          v-else-if="p != 'direct' && profileList.includes(p) && confirmDelete[p]"
-          @click="deleteProfile(p)">Confirm</button>
-        <button class="btn btn-sm min-w-24 btn-warning join-item"
-          v-else-if="p != 'direct' && profileList.includes(p)"
-          @click="confirmDelete[p] = true">Delete</button>
-        <button class="btn btn-sm min-w-24 btn-disabled join-item" v-else></button>
-      </template>
+  <div class="flex flex-col gap-4">
+    <div class="card bg-base-100 shadow-sm" v-if="hard">
+      <div class="card-body p-5">
+        <h2>Onboard profiles</h2>
+        <p class="text-sm opacity-70 mb-2">This mouse has {{ onboardSlots.length }} onboard {{ onboardSlots.length === 1 ? 'slot' : 'slots' }}. Direct is always available and is never saved.</p>
+        <div class="flex flex-col gap-2">
+          <div v-for="p in onboardSlots" :key="p" class="flex items-center gap-3">
+            <span class="badge capitalize w-20" :class="profileList.includes(p) ? 'badge-primary' : 'badge-ghost'">{{ p }}</span>
+            <span class="text-sm opacity-60 flex-1">{{ profileList.includes(p) ? 'stored on the mouse' : 'empty slot' }}</span>
+            <button class="btn btn-sm btn-success min-w-24" v-if="!profileList.includes(p)" @click="newProfile(p)">Create</button>
+            <button class="btn btn-sm btn-error min-w-24" v-else-if="confirmDelete[p]" @click="deleteProfile(p)">Confirm</button>
+            <button class="btn btn-sm btn-ghost min-w-24" v-else @click="confirmDelete[p] = true">Delete</button>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="h-2"></div>
-    <div>Export and import profile configs (YAML):</div>
-    <textarea
-      placeholder="Profile text data"
-      class="textarea textarea-bordered textarea-sm w-full h-40 my-4"
-      v-model="profileTextData"></textarea>
-    <div class="flex flex-row w-full gap-4">
-      <button class="btn flex-1" @click="exportConfig">Export configs</button>
-      <button class="btn flex-1" @click="importConfig">Import configs</button>
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-5">
+        <h2>Export and import</h2>
+        <p class="text-sm opacity-70">Works on the profile selected at the top. Export, switch profile, import to clone it. Macros and sensor data are stored separately and are not included.</p>
+        <textarea
+          placeholder="Profile config (YAML)"
+          class="textarea textarea-bordered textarea-sm font-mono w-full h-40 my-3"
+          v-model="profileTextData"></textarea>
+        <div class="flex gap-3">
+          <button class="btn btn-sm flex-1" @click="exportConfig">Export</button>
+          <button class="btn btn-sm btn-primary flex-1" @click="importConfig">Import</button>
+        </div>
+      </div>
     </div>
-    <div class="max-w-xl">Importing and exporting operates on currently selected profile. That is the row below the title.</div>
-    <div class="max-w-xl">The config can be exported and imported to other profile, thus cloning an existing profile. It can also be saved or shared.</div>
-    <div class="max-w-xl">The config does not include macro and sensor data. These are stored separately.</div>
   </div>
 </template>

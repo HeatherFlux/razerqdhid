@@ -4,15 +4,18 @@ import { ref } from 'vue';
 import { fromHexString, toHexString } from './hexString';
 
 const props = defineProps<{
-  py: Function
+  py: Function,
+  unsupported?: string[],
 }>();
+const hasFlash = !(props.unsupported ?? []).includes('flash_usage');
+const hasMacros = !(props.unsupported ?? []).includes('macros');
 const serial = await props.py(`device.get_serial().decode('utf-8')`);
 const fwVersion = await props.py(`'.'.join(str(x) for x in device.get_firmware_version())`);
-const flashUsage = await props.py(`device.get_flash_usage()`);
+const flashUsage = hasFlash ? await props.py(`device.get_flash_usage()`) : [0, 1, 1, 0];
 const [_, flashTotal, flashFree, flashRecycled] = flashUsage;
 const flashCanUse = flashFree - flashRecycled;
 const flashUsed = flashTotal - flashFree;
-const macroCount = await props.py(`device.get_macro_count()`);
+const macroCount = hasMacros ? await props.py(`device.get_macro_count()`) : 0;
 
 const confirmReset = ref(false);
 
@@ -46,14 +49,15 @@ list(a + b)
       <tr><td colspan="2" class="subtitle">System</td></tr>
       <tr><td>Serial</td><td>{{ serial }}</td></tr>
       <tr><td>Firmware</td><td>{{ fwVersion }}</td></tr>
-      <tr><td>Flash</td><td>
+      <tr v-if="hasFlash"><td>Flash</td><td>
         <div>Total: {{ flashTotal / 256 }} ({{ filesize(flashTotal) }})</div>
         <div>In use: {{ flashUsed / 256 }} ({{ filesize(flashUsed) }})</div>
         <div>Available: {{ flashCanUse / 256 }} ({{ filesize(flashCanUse) }})</div>
         <div>Recycled: {{ flashRecycled / 256 }} ({{ filesize(flashRecycled) }})</div>
       </td></tr>
-      <tr><td>Macro count</td><td>{{ macroCount }}</td></tr>
+      <tr v-if="hasMacros"><td>Macro count</td><td>{{ macroCount }}</td></tr>
     </tbody></table>
+    <template v-if="hasFlash">
     <div class="flex items-center h-4">
       <div 
         class="h-full text-center bg-error text-error-content"
@@ -79,6 +83,7 @@ list(a + b)
     <button class="btn btn-sm min-w-24 btn-error w-full"
       v-if="confirmReset"
       @click="resetFlash">Confirm</button>
+    </template>
     <details>
       <summary>Send raw report</summary>
       <div class="grid gap-2 items-baseline" style="grid-template-columns: max-content auto;">

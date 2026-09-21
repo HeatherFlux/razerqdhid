@@ -82,26 +82,54 @@ const isPythonReady = computed(() => {
 
 </script>
 <template>
-  <div class="w-min-[30em] *:my-2">
-    <h1><img src="/snakemouse.svg" class="inline h-[1em]" />Razer Basilisk V3 Onboard Memory Tools</h1>
-    <div>Browser must support WebHID to work, Click "Connect to mouse" and select device</div>
-    <div>Select your Razer mouse: Basilisk V3 (1532:0099), Basilisk V3 Pro (1532:00AA/00AB) or Naga V2 HyperSpeed (1532:00B4). Pick the entry that shows as the mouse, not a keyboard.</div>
-    <div>V3 Pro is also supported (1532:00AA, 1532:00AB)</div>
-    <div><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebHID_API#browser_compatibility" class="link">You browser</a> <span class="bg-success text-success-content" v-if="hasHid()">probably supports WebHID</span><span class="bg-error text-error-content" v-else>does not support WebHID</span></div>
-    <button class="btn btn-primary block w-96" @click="requestDevice" :class="{'btn-disabled': !isPythonReady}">Connect to mouse</button>
-    <button class="btn block w-96" @click="noHardwareMode" :class="{'btn-disabled': !isPythonReady}">Use without actual mouse</button>
-    <div v-if="!isPythonReady"><span class="loading loading-spinner"></span><span>Loading python</span></div>
-    <PythonRunner :py="runPython ?? (() => null)" />
-    <details>
-      <summary class="opacity-30">Custom VID/PID</summary>
-      <div>
-        <div>Do not change this if you don't know what you are doing</div>
-        <div>It may damage your hardware if it's not a Basilisk V3</div>
-        <div>VID: <input type="text" class="input input-bordered input-sm" @change="(event) => customVid = parseInt(event.target?.value) ?? 0"/></div>
-        <div>PID: <input type="text" class="input input-bordered input-sm" @change="(event) => customPid = parseInt(event.target?.value) ?? 0"/></div>
-        <button class="btn btn-sm btn-error" @click="setCustomVidPid">Set</button>
-        <div>Custom path: <input type="text" class="input input-bordered input-sm" @change="(event) => customPath = JSON.parse(event.target?.value)"/></div>
+  <div class="flex-1 flex items-center justify-center p-6">
+    <div class="card bg-base-100 shadow-xl w-full max-w-lg">
+      <div class="card-body gap-5">
+        <div class="flex items-center gap-4">
+          <img src="/snakemouse.svg" class="h-12 w-12" alt="" />
+          <div>
+            <h1>Connect your mouse</h1>
+            <p class="text-sm opacity-70">Settings are read from, and written to, the mouse's own memory.</p>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wider opacity-60 mb-2">Supported</div>
+          <div class="flex flex-wrap gap-2">
+            <span class="badge badge-outline">Basilisk V3</span>
+            <span class="badge badge-outline">Basilisk V3 Pro</span>
+            <span class="badge badge-outline">Naga V2 HyperSpeed</span>
+          </div>
+        </div>
+        <div v-if="!hasHid()" role="alert" class="alert alert-error text-sm">
+          <span>This browser has no WebHID. Use Chrome, Edge, or the desktop app.</span>
+        </div>
+        <p v-else class="text-sm opacity-70">In the device picker, choose the entry listed as a mouse, not the keyboard one.</p>
+        <div class="flex flex-col gap-2">
+          <button class="btn btn-primary w-full" :disabled="!isPythonReady" @click="requestDevice">
+            <span v-if="!isPythonReady" class="loading loading-spinner loading-sm"></span>
+            {{ isPythonReady ? 'Connect to mouse' : 'Loading runtime' }}
+          </button>
+          <button class="btn btn-ghost btn-sm w-full" :disabled="!isPythonReady" @click="noHardwareMode">Try without a mouse</button>
+        </div>
+        <details class="collapse collapse-arrow bg-base-200 text-sm">
+          <summary class="collapse-title min-h-0 py-2 text-xs opacity-60">Advanced</summary>
+          <div class="collapse-content flex flex-col gap-3">
+            <div class="text-xs opacity-70">Only change these if you know what you are doing. Wrong values can damage a mouse.</div>
+            <div class="flex items-center gap-2">
+              <span class="w-24">VID</span>
+              <input type="text" class="input input-bordered input-sm w-32" @change="(event) => customVid = parseInt((event.target as HTMLInputElement).value) ?? 0"/>
+              <span class="w-8 text-right">PID</span>
+              <input type="text" class="input input-bordered input-sm w-32" @change="(event) => customPid = parseInt((event.target as HTMLInputElement).value) ?? 0"/>
+              <button class="btn btn-sm btn-error" @click="setCustomVidPid">Set</button>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-24">Custom path</span>
+              <input type="text" class="input input-bordered input-sm flex-1" @change="(event) => customPath = JSON.parse((event.target as HTMLInputElement).value)"/>
+            </div>
+            <PythonRunner :py="runPython ?? (() => null)" />
+          </div>
+        </details>
       </div>
-    </details>
+    </div>
   </div>
 </template>

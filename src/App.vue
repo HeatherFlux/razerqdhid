@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import ConnectDevice from './components/ConnectDevice.vue';
 import DeviceMain from './components/DeviceMain.vue';
 import LogConsole from './components/LogConsole.vue';
-import LogGlance from './components/LogGlance.vue';
 
 const connected = ref(false);
 const hard = ref(false);
@@ -11,10 +10,13 @@ const hard = ref(false);
 const showConsole = ref(false);
 const logConsole = ref<InstanceType<typeof LogConsole> | null>(null);
 
-const logs = ref<[Date, string][]>([[new Date(), 'Here be logs']]);
+const logs = ref<[Date, string][]>([[new Date(), 'Ready']]);
 function addLog(text: string) {
   logs.value.push([new Date(), text]);
 }
+const lastLog = computed(() => logs.value[logs.value.length - 1]?.[1] ?? '');
+const lastIsError = computed(() => /\berror\b/i.test(lastLog.value));
+
 var cl:Function, ce:Function, cw:Function;
 
 if(window.console && console.log){
@@ -48,41 +50,33 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error(`${event.type}: ${event.reason}`);
 });
 
+function toggleConsole() {
+  showConsole.value = !showConsole.value;
+  if (logConsole.value) { logConsole.value.scrollToBottom(); }
+}
+
 </script>
 
 <template>
-  <div>
-    <ConnectDevice v-if="!connected" @device-created="connected = true; hard = true;" @device-not-created="connected = true; hard = false;"/>
-    <DeviceMain v-else :hard="hard" />
+  <div class="flex flex-col h-full bg-base-200">
+    <header class="flex items-center gap-3 px-4 h-12 shrink-0 bg-base-100 border-b border-base-300">
+      <img src="/snakemouse.svg" class="h-6 w-6" alt="" />
+      <span class="font-semibold">Razer Onboard Config</span>
+      <span class="ml-auto badge badge-sm"
+        :class="hard ? 'badge-success' : connected ? 'badge-warning' : 'badge-ghost'">
+        {{ hard ? 'Connected' : connected ? 'Demo mode' : 'Not connected' }}
+      </span>
+    </header>
+    <main class="flex-1 min-h-0 flex flex-col">
+      <ConnectDevice v-if="!connected" @device-created="connected = true; hard = true;" @device-not-created="connected = true; hard = false;"/>
+      <DeviceMain v-else :hard="hard" />
+    </main>
+    <footer class="shrink-0 bg-base-100 border-t border-base-300">
+      <div class="flex items-center gap-3 px-4 h-8 text-xs">
+        <button class="btn btn-ghost btn-xs" @click="toggleConsole">{{ showConsole ? 'Hide log' : 'Log' }}</button>
+        <span class="truncate font-mono" :class="lastIsError ? 'text-error' : 'opacity-60'">{{ lastLog }}</span>
+      </div>
+      <LogConsole v-show="showConsole" ref="logConsole" :messages="logs" />
+    </footer>
   </div>
-  <div class="h-96"></div>
-  <footer>
-    <div class="flex flex-row gap-2 items-baseline">
-      <button class="btn btn-sm" @click="showConsole = !showConsole; if(logConsole) {logConsole.scrollToBottom()}">Console</button>
-      <LogGlance :messages="logs"></LogGlance>
-    </div>
-    <LogConsole v-show="showConsole" ref="logConsole" :messages="logs" />
-  </footer>
 </template>
-
-<style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
-}
-footer {
-  position: fixed;
-  display: block;
-  bottom: 0;
-  padding: 1em 0;
-  width: 100%;
-}
-</style>

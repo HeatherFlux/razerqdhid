@@ -280,14 +280,17 @@ class Device:
         except pt.RazerException:
             pass
         
-        # led effect
-        led_effect = {}
-        led_brightness = {}
-        for region in pt.LedRegion:
-            if region == pt.LedRegion.ALL:
-                continue
-            led_effect[region] = self.get_led_effect(region, profile=profile)
-            led_brightness[region] = self.get_led_brightness(region, profile=profile)
+        # led effect (skipped on models without lighting)
+        if 'led' not in self.unsupported:
+            led_effect = {}
+            led_brightness = {}
+            for region in pt.LedRegion:
+                if region == pt.LedRegion.ALL:
+                    continue
+                led_effect[region] = self.get_led_effect(region, profile=profile)
+                led_brightness[region] = self.get_led_brightness(region, profile=profile)
+            dump['led_effect'] = led_effect
+            dump['led_brightness'] = led_brightness
         
         return dump
     

@@ -29,7 +29,10 @@ class NagaV2HyperSpeedDevice(BasiliskV3Device):
     ifn = 0
     model_name = 'Razer Naga V2 HyperSpeed'
     # No free-spin wheel: 0x94/0x96/0x97 (and their setters) answer NOT_SUPPORTED.
-    unsupported = ('scroll_mode', 'scroll_acceleration', 'scroll_smart_reel')
+    # No RGB lighting; and the flash-usage (0x068e) / macro-list (0x068b) commands
+    # answer NOT_SUPPORTED, so macro storage is not exposed on this model.
+    unsupported = ('scroll_mode', 'scroll_acceleration', 'scroll_smart_reel', 'led',
+                   'macros', 'flash_usage')
     buttons_layout = [
         'left', 'middle', 'right', 'wheel_up',
         'wheel_left', 'wheel_right', 'dpi_up', 'wheel_down',
