@@ -2,7 +2,7 @@
 Type=Application
 Name=Razer Onboard Config
 Comment=Program Razer mouse buttons, DPI and profiles into onboard memory
-Exec=electron44 /home/heather/dev/razerqdhid/electron
+Exec=electron /home/heather/dev/razerqdhid/electron
 Icon=razer-onboard-config
 Terminal=false
 Categories=Settings;HardwareSettings;Utility;
