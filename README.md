@@ -1,6 +1,67 @@
 
 # Razer Quick & Dirty HID
 
+## About this fork
+
+This is a fork of [geezmolycos/razerqdhid](https://github.com/geezmolycos/razerqdhid). It adds:
+
+- **Razer Naga V2 HyperSpeed** support (2.4 GHz receiver, `1532:00B4`), including the 12-button thumb grid.
+- A **desktop app** (Electron) that wraps the web app, so no WebHID-capable browser is needed.
+- **Per-app profiles** on Hyprland: button bindings and DPI stages switch automatically with the focused window.
+- A **refreshed UI**: sidebar navigation, a button grid that shows each binding in plain words (`T`, `Ctrl+Z`), and tabs that follow what the connected model supports.
+
+Everything below the [Supported devices](#supported-devices) and [Desktop app](#desktop-app) sections is the original README.
+
+### Supported devices
+
+| Model | USB ID | Notes |
+| --- | --- | --- |
+| Razer Basilisk V3 (wired) | `1532:0099` | Original target of the project |
+| Razer Basilisk V3 Pro | `1532:00AA` | Same protocol; some differences in RGB lighting and sensor |
+| Razer Naga V2 HyperSpeed | `1532:00B4` | Via the 2.4 GHz receiver. Button bindings, DPI and profiles are available. The mouse reports scroll mode, scroll acceleration, Smart Reel, LED, macros and flash usage as not supported, so those are hidden. |
+
+Each model declares its own button layout and its unsupported settings in [public/py](./public/py/), so adding a model is mostly a matter of subclassing `BasiliskV3Device`; see [naga_v2/device.py](./public/py/naga_v2/device.py).
+
+Naga V2 HyperSpeed note: thumb button 10 ships bound to a left-click turbo rather than keyboard `0`, which is why it acts as a plain left click out of the box. Rebind it in the Buttons tab.
+
+### Desktop app
+
+Requirements: Node.js, and Electron installed on the system (`electron` on the `PATH`; on Arch, `sudo pacman -S electron`). Electron is not an npm dependency of this project.
+
+```sh
+npm install
+# Pyodide is not in the repo; download it once
+mkdir -p ./public/pyodide && wget -O - https://github.com/pyodide/pyodide/releases/download/0.26.2/pyodide-core-0.26.2.tar.bz2 | tar -xvj -C ./public/pyodide --strip-components=1
+npm run desktop        # builds into dist-desktop/ and starts the app
+```
+
+After the first build, `electron electron` from the project root starts the app without rebuilding. Run `npm run build:desktop` again after changing the code.
+
+The app picks the mouse's control interface automatically, so there is no device picker. Closing the window hides it to the tray; use Quit in the tray menu or the footer to exit. Launching it a second time shows the existing window.
+
+**Launcher entry:** [desktop/razer-onboard-config.desktop](./desktop/razer-onboard-config.desktop) contains an absolute path in its `Exec` line. Change it to where you cloned the repo, then copy the file to `~/.local/share/applications/`. The tray and launcher icon is optional: put a PNG at `electron/icon.png`.
+
+**Linux permissions:** if the app reports that the mouse was found but could not be opened, your user has no access to the hidraw device. Create `/etc/udev/rules.d/70-razer-hidraw.rules`:
+
+```
+KERNEL=="hidraw*", ATTRS{idVendor}=="1532", MODE="0660", TAG+="uaccess"
+```
+
+Then run `sudo udevadm control --reload && sudo udevadm trigger` and replug the mouse or receiver.
+
+### Per-app profiles
+
+The Apps tab is available in the desktop app only, and automatic switching requires [Hyprland](https://hyprland.org/).
+
+- A **profile** is a named snapshot of all button bindings plus the DPI stages.
+- A **rule** maps a window class (regular expression) to a profile. The picker lists running windows, installed Steam games and desktop entries; one click adds a rule with an exact match.
+- When the focused window changes, the matching profile is written to the mouse's direct profile. The onboard profiles are left untouched, and only bindings that differ are written.
+- The profile is checked every 30 seconds and applied again if the mouse dropped it, for example after sleeping.
+
+The app has to keep running for switching to work, which is why closing the window hides it to the tray.
+
+---
+
 更改 Razer Basilisk V3 (雷蛇巴蛇V3) 鼠标配置，使用抓包分析到的协议，没有借助雷蛇任何软件的代码。使用 Python 调用 [libusb/hidapi](https://github.com/libusb/hidapi) 通信，可跨平台使用。实现比较简单，主要是可以更改按键功能，可以读取和修改宏（巨集），其他开源软件没有实现。
 
 借鉴了 [CalcProgrammer1/OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB) 和 [openrazer](https://github.com/openrazer/openrazer) 的函数名、命令数值等，但是完全没有使用那些代码。
