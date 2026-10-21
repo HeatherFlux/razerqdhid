@@ -11,6 +11,7 @@ const props = defineProps<{
   hard?: boolean; // should it interact with hardware or just dummy
   activeProfile: string;
   buttonsLayout?: (string | null)[];
+  unsupported?: string[]; // settings the connected model rejects (see Device.unsupported)
 }>();
 
 const bridgeData = defineModel<BridgeData>('bridgeData', {default: {}});
@@ -131,7 +132,8 @@ f(profile, button, hypershift, value)
 const functionCategoryList = [
   'disabled', 'mouse', 'keyboard', 'macro', 'dpi_switch', 'profile_switch',
   'system', 'consumer', 'hypershift_toggle', 'scroll_mode_toggle', 'custom',
-];
+].filter((c) => !(c === 'macro' && props.unsupported?.includes('macros'))
+             && !(c === 'scroll_mode_toggle' && props.unsupported?.includes('scroll_mode')));
 
 const selectedButtonFunction = computed({
   get: () => {

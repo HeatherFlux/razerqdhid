@@ -92,9 +92,9 @@ onMounted(async () => {
     <div class="join join-vertical">
       <button class="btn join-item" :class="{'btn-active': activeTab === 'basic'}" @click="activeTab = 'basic'; refreshKey++; ">Basic</button>
       <button class="btn join-item" :class="{'btn-active': activeTab === 'button'}" @click="activeTab = 'button'; refreshKey++; ">Button</button>
-      <button class="btn join-item" :class="{'btn-active': activeTab === 'led'}" @click="activeTab = 'led'; refreshKey++; ">LED</button>
+      <button class="btn join-item" v-if="!unsupported.includes('led')" :class="{'btn-active': activeTab === 'led'}" @click="activeTab = 'led'; refreshKey++; ">LED</button>
       <button class="btn join-item" :class="{'btn-active': activeTab === 'profile'}" @click="activeTab = 'profile'; refreshKey++; ">Profile</button>
-      <button class="btn join-item" :class="{'btn-active': activeTab === 'macro'}" @click="activeTab = 'macro'; refreshKey++; ">Macro</button>
+      <button class="btn join-item" v-if="!unsupported.includes('macros')" :class="{'btn-active': activeTab === 'macro'}" @click="activeTab = 'macro'; refreshKey++; ">Macro</button>
       <button class="btn join-item" :class="{'btn-active': activeTab === 'sensor'}" @click="activeTab = 'sensor'; refreshKey++; ">Sensor</button>
       <button class="btn join-item" :class="{'btn-active': activeTab === 'info'}" @click="activeTab = 'info'; refreshKey++; ">Info</button>
     </div>
@@ -107,17 +107,17 @@ onMounted(async () => {
               :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard" :unsupported="unsupported"
               v-model:bridge-data="profileConfigData.basic" v-model:bridge-status="profileConfigStatus.basic"/>
             <ButtonConfig v-if="deviceInfoLoaded && (activeTab === 'button' || enableAllConfigSections)" v-show="!enableAllConfigSections"
-              :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard" :buttons-layout="buttonsLayout"
+              :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard" :buttons-layout="buttonsLayout" :unsupported="unsupported"
               v-model:bridge-data="profileConfigData.button" v-model:bridge-status="profileConfigStatus.button"/>
-            <LedConfig v-if="activeTab === 'led' || enableAllConfigSections" v-show="!enableAllConfigSections"
+            <LedConfig v-if="deviceInfoLoaded && !unsupported.includes('led') && (activeTab === 'led' || enableAllConfigSections)" v-show="!enableAllConfigSections"
               :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"
               v-model:bridge-data="profileConfigData.led" v-model:bridge-status="profileConfigStatus.led"/>
-            <MacroConfig v-if="activeTab === 'macro'"
+            <MacroConfig v-if="activeTab === 'macro' && !unsupported.includes('macros')"
               :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"/>
             <SensorConfig v-if="activeTab === 'sensor'"
               :key="refreshKey" :py="runPython" :active-profile="activeProfile" :hard="hard"/>
             <MouseInfo v-if="activeTab === 'info' && hard"
-              :key="refreshKey" :py="runPython"/>
+              :key="refreshKey" :py="runPython" :unsupported="unsupported"/>
             <div v-if="activeTab === 'info' && !hard">No hardware connected</div>
             <PythonRunner v-if="activeTab === 'info'" :py="runPython" />
             <!-- v-show is used to load available profiles when initially loaded -->

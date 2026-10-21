@@ -22,6 +22,20 @@ class NagaV2HyperSpeedDevice(BasiliskV3Device):
     thumb_10 (0x49) ships bound to a left-click mouse-turbo (200 ms), not
     to keyboard '0'. That is why, out of the box, it behaves as a plain
     left click on the host. Rebind it here to change that.
+
+    Confirmed on a second unit (receiver, firmware 1.1, Linux hidraw), see
+    https://github.com/geezmolycos/razerqdhid/pull/7#issuecomment-5975549710:
+      - set_button_function (0x020c) writes and reads back on both
+        hypershift layers.
+      - Keyboard usages F13..F24 (0x68..0x73) can be stored and are sent by
+        the mouse. Synapse 4 never writes them, so they only worked under
+        Synapse before.
+      - Consumer (0x0a) and hypershift-toggle (0x0c) functions work on any
+        button, including middle click and the wheel tilts.
+      - Battery (0x0780) and idle time (0x0783) answer OK.
+      - NOT_SUPPORTED: LED effect/brightness (0x0f82, 0x0f84), flash usage
+        (0x068e), macro count/list (0x0680, 0x068b) and the three wheel
+        settings. Those are declared below so the UI hides them.
     """
 
     vid = 0x1532
@@ -29,7 +43,11 @@ class NagaV2HyperSpeedDevice(BasiliskV3Device):
     ifn = 0
     model_name = 'Razer Naga V2 HyperSpeed'
     # No free-spin wheel: 0x94/0x96/0x97 (and their setters) answer NOT_SUPPORTED.
-    unsupported = ('scroll_mode', 'scroll_acceleration', 'scroll_smart_reel')
+    # No RGB lighting (0x0f82/0x0f84), and the flash-usage (0x068e) and macro
+    # count/list (0x0680/0x068b) commands answer NOT_SUPPORTED too, so macro
+    # storage is not exposed on this model.
+    unsupported = ('scroll_mode', 'scroll_acceleration', 'scroll_smart_reel',
+                   'led', 'macros', 'flash_usage')
     buttons_layout = [
         'left', 'middle', 'right', 'wheel_up',
         'wheel_left', 'wheel_right', 'dpi_up', 'wheel_down',
